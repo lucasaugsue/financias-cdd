@@ -12,7 +12,7 @@ def formatar_moeda(valor):
 def render_indicadores(df, coluna_tipo):
     indicadores = calcular_indicadores(df, coluna_tipo)
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
         with st.container(border=True):
@@ -36,4 +36,12 @@ def render_indicadores(df, coluna_tipo):
                 label="Total de saídas",
                 value=formatar_moeda(indicadores["total_saidas"]),
                 help="Soma dos valores das movimentações classificadas como saída."
+            )
+
+    with col4:
+        with st.container(border=True):
+            st.metric(
+                label="Saldo",
+                value=formatar_moeda(indicadores["saldo"]),
+                help="Total de entradas menos o total de saídas."
             )

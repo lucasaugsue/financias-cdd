@@ -40,3 +40,55 @@ def calcular_hash_arquivo(arquivo, banco_origem):
     return hashlib.sha256(
         banco_origem.encode("utf-8") + b":" + conteudo
     ).hexdigest()
+    
+
+def limpar_extrato_banco_brasil(df):
+    """
+    Aplica regras específicas aos extratos CSV do Banco do Brasil:
+    - Remove movimentações com valor igual a zero.
+    - Remove lançamentos BB Rende Fácil.
+    """
+    df = df.copy()
+
+    # Regra 1: remover BB Rende Fácil
+    if "Lançamento" in df.columns:
+        lancamentos = (
+            df["Lançamento"]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.casefold()
+        )
+
+        df = df[lancamentos != "bb rende fácil"]
+
+    # Regra 2: remover valores iguais a zero
+    if "Valor" in df.columns:
+
+        def converter_valor(valor):
+            if pd.isna(valor):
+                return float("nan")
+
+            if isinstance(valor, (int, float)):
+                return float(valor)
+
+            valor = str(valor).strip()
+            valor = valor.replace("R$", "").replace(" ", "")
+
+            if "," in valor and "." in valor:
+                if valor.rfind(",") > valor.rfind("."):
+                    valor = valor.replace(".", "").replace(",", ".")
+                else:
+                    valor = valor.replace(",", "")
+            elif "," in valor:
+                valor = valor.replace(",", ".")
+
+            return pd.to_numeric(valor, errors="coerce")
+
+        valores = df["Valor"].apply(converter_valor)
+
+        # Mantém valores não identificados e remove somente os zeros.
+        df = df[valores.isna() | valores.ne(0)]
+
+    return df.reset_index(drop=True)
+

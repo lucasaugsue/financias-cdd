@@ -4,11 +4,42 @@ import streamlit as st
 from services.movimentacoes import aplicar_filtros
 
 
+def atualizar_arquivo_selecionado(arquivo):
+    """Atualiza a lista de arquivos selecionados."""
+    selecionados = set(
+        st.session_state.get("filtro_arquivo", [])
+    )
+
+    chave = f"filtro_arquivo_item_{arquivo}"
+
+    if st.session_state[chave]:
+        selecionados.add(arquivo)
+    else:
+        selecionados.discard(arquivo)
+
+    opcoes = st.session_state.get(
+        "filtro_arquivo_opcoes", []
+    )
+
+    st.session_state["filtro_arquivo"] = [
+        item for item in opcoes if item in selecionados
+    ]
+
+
 def limpar_filtros():
 
     st.session_state["filtro_banco"] = "Todos"
     st.session_state["filtro_tipo"] = "Todos"
-    st.session_state["filtro_arquivo"] = "Todos"
+
+    arquivos = st.session_state.get(
+        "filtro_arquivo_opcoes", []
+    )
+
+    st.session_state["filtro_arquivo"] = arquivos.copy()
+
+    for arquivo in arquivos:
+        chave = f"filtro_arquivo_item_{arquivo}"
+        st.session_state[chave] = True
 
     if "filtro_periodo_padrao" in st.session_state:
         st.session_state["filtro_periodo"] = (
@@ -27,12 +58,26 @@ def render_filtros(df, coluna_data, coluna_tipo):
         .tolist()
     )
 
-    arquivos = ["Todos"] + sorted(
+    arquivos = sorted(
         df["arquivo_origem"]
         .dropna()
         .unique()
         .tolist()
     )
+
+    # Guarda as opções disponíveis
+    st.session_state["filtro_arquivo_opcoes"] = arquivos.copy()
+
+    # Inicializa os arquivos selecionados
+    if "filtro_arquivo" not in st.session_state:
+        st.session_state["filtro_arquivo"] = arquivos.copy()
+
+    # Remove arquivos que não existem mais
+    st.session_state["filtro_arquivo"] = [
+        arquivo
+        for arquivo in st.session_state["filtro_arquivo"]
+        if arquivo in arquivos
+    ]
 
     periodo_disponivel = (
         coluna_data is not None
@@ -75,8 +120,12 @@ def render_filtros(df, coluna_data, coluna_tipo):
     if "filtro_tipo" not in st.session_state:
         st.session_state["filtro_tipo"] = "Todos"
 
-    if "filtro_arquivo" not in st.session_state:
-        st.session_state["filtro_arquivo"] = "Todos"
+    # Sincroniza os checkboxes com os arquivos selecionados
+    selecionados = st.session_state["filtro_arquivo"]
+
+    for arquivo in arquivos:
+        chave = f"filtro_arquivo_item_{arquivo}"
+        st.session_state[chave] = arquivo in selecionados
 
     col1, col2, col3, col4 = st.columns(4)
 
@@ -122,11 +171,48 @@ def render_filtros(df, coluna_data, coluna_tipo):
             )
 
     with col4:
-        arquivo = st.selectbox(
-            "Arquivo de origem",
-            arquivos,
-            key="filtro_arquivo",
+
+        quantidade_selecionada = len(selecionados)
+
+        st.markdown(
+            """
+            <div style="
+                font-size: 14px;
+                line-height: 1.5;
+                margin-bottom: 7px;
+                color: inherit;
+            ">
+                Arquivo de origem
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
+
+        with st.popover(
+            f"Arquivos ({quantidade_selecionada} selecionados)",
+            use_container_width=True,
+        ):
+
+            st.caption("Selecione os arquivos desejados:")
+
+            if not arquivos:
+                st.info("Nenhum arquivo disponível.")
+
+            for arquivo in arquivos:
+                chave = f"filtro_arquivo_item_{arquivo}"
+
+                # Impede desmarcar o último arquivo selecionado
+                ultimo_selecionado = (
+                    quantidade_selecionada == 1
+                    and arquivo in selecionados
+                )
+
+                st.checkbox(
+                    arquivo,
+                    key=chave,
+                    on_change=atualizar_arquivo_selecionado,
+                    args=(arquivo,),
+                )
 
     st.button(
         "🧹 Limpar filtros",
@@ -138,7 +224,7 @@ def render_filtros(df, coluna_data, coluna_tipo):
         banco=banco,
         periodo=periodo,
         tipo=tipo,
-        arquivo=arquivo,
+        arquivo=st.session_state["filtro_arquivo"],
         coluna_data=coluna_data,
         coluna_tipo=coluna_tipo,
     )

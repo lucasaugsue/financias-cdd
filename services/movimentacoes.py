@@ -67,11 +67,23 @@ def aplicar_filtros(
             .str.casefold() == tipo.casefold()
         ]
 
-    if arquivo != "Todos":
-        df_filtrado = df_filtrado[
-            df_filtrado["arquivo_origem"] == arquivo
-        ]
+    if isinstance(arquivo, (list, tuple, set)):
 
+        arquivos_selecionados = {
+            str(nome).strip().casefold()
+            for nome in arquivo
+        }
+
+        indices_filtrados = list(
+            filter(
+                lambda indice: str(df_filtrado.loc[indice, "arquivo_origem"]).strip().casefold()
+                in arquivos_selecionados,
+                df_filtrado.index
+            )
+        )
+
+        df_filtrado = df_filtrado.loc[indices_filtrados].copy()
+        
     return df_filtrado
 
 
@@ -97,6 +109,16 @@ def converter_valor_monetario(valor):
 
 
 def calcular_indicadores(df, coluna_tipo, coluna_valor="Valor"):
+
+    # Se não houver movimentações, retorna todos os indicadores zerados
+    if df.empty:
+        return {
+            "total_movimentacoes": 0,
+            "total_entradas": 0.0,
+            "total_saidas": 0.0,
+            "saldo": 0.0,
+        }
+
     if coluna_valor not in df.columns:
         raise ValueError(
             f"A coluna '{coluna_valor}' não foi encontrada."
@@ -113,9 +135,11 @@ def calcular_indicadores(df, coluna_tipo, coluna_valor="Valor"):
 
     entradas = valores[tipos == "entrada"].sum()
     saidas = valores[tipos == "saída"].abs().sum()
+    saldo = entradas - saidas
 
     return {
         "total_movimentacoes": len(df),
         "total_entradas": entradas,
         "total_saidas": saidas,
+        "saldo": saldo,
     }

@@ -39,8 +39,32 @@ def render_movimentacoes():
 
         st.divider()
 
+        # Verifica se existem movimentações para apresentar
+        if df_filtrado.empty:
+
+            arquivos_selecionados = st.session_state.get(
+                "filtro_arquivo", []
+            )
+
+            if not arquivos_selecionados:
+                st.info(
+                    "Nenhum arquivo de origem selecionado. "
+                    "Selecione pelo menos um arquivo para visualizar "
+                    "as movimentações."
+                )
+            else:
+                st.info(
+                    "Nenhuma movimentação encontrada para os filtros selecionados."
+                )
+
+            return
+
         # Tabela de movimentações
-        st.dataframe(df_filtrado, width="stretch", hide_index=True)
+        st.dataframe(
+            df_filtrado,
+            width="stretch",
+            hide_index=True,
+        )
 
     except Exception as erro:
         st.error(
