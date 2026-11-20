@@ -3,6 +3,7 @@ import pandas as pd
 
 
 def identificar_coluna_data(df):
+    """Identifica a coluna que contém as datas das movimentações."""
     return next(
         (
             coluna for coluna in df.columns
@@ -13,16 +14,19 @@ def identificar_coluna_data(df):
 
 
 def identificar_coluna_tipo(df):
+    """Identifica a coluna de tipo de lançamento."""
     return next(
         (
             coluna for coluna in df.columns
-            if str(coluna).strip().casefold() == "tipo lançamento".casefold()
+            if str(coluna).strip().casefold()
+            == "tipo lançamento".casefold()
         ),
         None,
     )
 
 
 def preparar_movimentacoes(df):
+    """Prepara os dados para exibição e filtragem."""
     df = df.copy()
 
     coluna_data = identificar_coluna_data(df)
@@ -30,7 +34,8 @@ def preparar_movimentacoes(df):
 
     if coluna_data:
         df[coluna_data] = pd.to_datetime(
-            df[coluna_data], errors="coerce"
+            df[coluna_data],
+            errors="coerce"
         ).dt.date
 
     return df, coluna_data, coluna_tipo
@@ -45,49 +50,49 @@ def aplicar_filtros(
     coluna_data=None,
     coluna_tipo=None,
 ):
+    """Aplica os filtros selecionados nas movimentações."""
+
     df_filtrado = df.copy()
 
+    # Filtro de banco de origem
     if banco != "Todos":
         df_filtrado = df_filtrado[
             df_filtrado["banco_origem"] == banco
         ]
 
+    # Filtro de período
     if coluna_data and periodo and len(periodo) == 2:
         data_inicio, data_final = periodo
 
         df_filtrado = df_filtrado[
-            df_filtrado[coluna_data].between(data_inicio, data_final)
+            df_filtrado[coluna_data].between(
+                data_inicio,
+                data_final
+            )
         ]
 
+    # Filtro de tipo de lançamento
     if coluna_tipo and tipo != "Todos":
         df_filtrado = df_filtrado[
             df_filtrado[coluna_tipo]
             .astype(str)
             .str.strip()
-            .str.casefold() == tipo.casefold()
+            .str.casefold()
+            == tipo.casefold()
         ]
 
-    if isinstance(arquivo, (list, tuple, set)):
+    # Filtro de arquivo de origem (seleção única)
+    if arquivo != "Todos":
+        df_filtrado = df_filtrado[
+            df_filtrado["arquivo_origem"] == arquivo
+        ]
 
-        arquivos_selecionados = {
-            str(nome).strip().casefold()
-            for nome in arquivo
-        }
-
-        indices_filtrados = list(
-            filter(
-                lambda indice: str(df_filtrado.loc[indice, "arquivo_origem"]).strip().casefold()
-                in arquivos_selecionados,
-                df_filtrado.index
-            )
-        )
-
-        df_filtrado = df_filtrado.loc[indices_filtrados].copy()
-        
     return df_filtrado
 
 
 def converter_valor_monetario(valor):
+    """Converte valores monetários brasileiros para números."""
+
     if pd.isna(valor):
         return 0.0
 
@@ -102,15 +107,20 @@ def converter_valor_monetario(valor):
             valor = valor.replace(".", "").replace(",", ".")
         else:
             valor = valor.replace(",", "")
+
     elif "," in valor:
         valor = valor.replace(",", ".")
 
     return float(valor)
 
 
-def calcular_indicadores(df, coluna_tipo, coluna_valor="Valor"):
+def calcular_indicadores(
+    df,
+    coluna_tipo,
+    coluna_valor="Valor"
+):
+    """Calcula os indicadores financeiros das movimentações."""
 
-    # Se não houver movimentações, retorna todos os indicadores zerados
     if df.empty:
         return {
             "total_movimentacoes": 0,
@@ -124,7 +134,14 @@ def calcular_indicadores(df, coluna_tipo, coluna_valor="Valor"):
             f"A coluna '{coluna_valor}' não foi encontrada."
         )
 
-    valores = df[coluna_valor].apply(converter_valor_monetario)
+    if not coluna_tipo or coluna_tipo not in df.columns:
+        raise ValueError(
+            "A coluna de tipo de lançamento não foi encontrada."
+        )
+
+    valores = df[coluna_valor].apply(
+        converter_valor_monetario
+    )
 
     tipos = (
         df[coluna_tipo]
@@ -134,7 +151,9 @@ def calcular_indicadores(df, coluna_tipo, coluna_valor="Valor"):
     )
 
     entradas = valores[tipos == "entrada"].sum()
+
     saidas = valores[tipos == "saída"].abs().sum()
+
     saldo = entradas - saidas
 
     return {
