@@ -83,21 +83,7 @@ def buscar_movimentacoes(extrato_id):
 
         registros = resultado.fetchall()
 
-    print("\n========== TESTE API ==========")
-    print("Extrato ID:", extrato_id)
-    print("Total de registros retornados:", len(registros))
-
-    for registro in registros:
-        print("\nID da movimentação:", registro.id)
-        print("Extrato ID:", registro.extrato_id)
-        print("Dados:", registro.dados)
-
     df = pd.DataFrame([registro.dados for registro in registros])
-
-    print("\nDataFrame retornado:")
-    print(df.to_string(index=False))
-    print("\nTotal de linhas no DataFrame:", len(df))
-    print("==============================\n")
 
     return df
 

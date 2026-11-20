@@ -1,6 +1,4 @@
-
 import pandas as pd
-
 
 def identificar_coluna_data(df):
     """Identifica a coluna que contém as datas das movimentações."""
@@ -40,18 +38,51 @@ def preparar_movimentacoes(df):
 
     return df, coluna_data, coluna_tipo
 
+
+def listar_periodos_disponiveis(df, coluna_data):
+    """Retorna os meses/anos que possuem movimentações cadastradas."""
+
+    if not coluna_data or coluna_data not in df.columns:
+        return []
+
+    datas = pd.to_datetime(
+        df[coluna_data],
+        errors="coerce"
+    )
+
+    periodos = (
+        datas.dt.to_period("M")
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
+
+    return sorted(periodos, reverse=True)
+
+
 def aplicar_filtros(
     df,
     banco="Todos",
-    periodo=None,
+    periodos=None,
     tipo="Todos",
-    arquivo="Todos",
     coluna_data=None,
     coluna_tipo=None,
 ):
     """Aplica os filtros selecionados nas movimentações."""
 
     df_filtrado = df.copy()
+
+    # Filtro de mês/ano
+    if periodos and coluna_data and coluna_data in df_filtrado.columns:
+        datas = pd.to_datetime(
+            df_filtrado[coluna_data],
+            errors="coerce"
+        )
+
+        df_filtrado = df_filtrado[
+            datas.dt.strftime("%Y-%m").isin(periodos)
+        ]
 
     # Filtro de banco de origem
     if banco != "Todos":
@@ -69,14 +100,7 @@ def aplicar_filtros(
             == tipo.casefold()
         ]
 
-    # Filtro de arquivo de origem (seleção única)
-    if arquivo != "Todos":
-        df_filtrado = df_filtrado[
-            df_filtrado["arquivo_origem"] == arquivo
-        ]
-
     return df_filtrado
-
 
 def converter_valor_monetario(valor):
     """Converte valores monetários brasileiros para números."""

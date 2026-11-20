@@ -1,14 +1,30 @@
-
 import streamlit as st
 
-from services.movimentacoes import aplicar_filtros
+from services.movimentacoes import (
+    aplicar_filtros,
+    listar_periodos_disponiveis
+)
 
 
 def limpar_filtros():
     """Restaura os filtros para os valores iniciais."""
     st.session_state["filtro_banco"] = "Todos"
     st.session_state["filtro_tipo"] = "Todos"
-    st.session_state["filtro_arquivo_unico"] = "Todos"
+    st.session_state["filtro_periodos"] = []
+
+
+def formatar_periodo(periodo):
+    """Transforma YYYY-MM em NomeDoMês/AAAA."""
+
+    meses = [
+        "Janeiro", "Fevereiro", "Março", "Abril",
+        "Maio", "Junho", "Julho", "Agosto",
+        "Setembro", "Outubro", "Novembro", "Dezembro"
+    ]
+
+    ano, mes = periodo.split("-")
+
+    return f"{meses[int(mes) - 1]}/{ano}"
 
 
 def render_filtros(df, coluna_data, coluna_tipo):
@@ -18,10 +34,6 @@ def render_filtros(df, coluna_data, coluna_tipo):
         df["banco_origem"].dropna().unique().tolist()
     )
 
-    arquivos = sorted(
-        df["arquivo_origem"].dropna().unique().tolist()
-    )
-
     tipos = []
 
     if coluna_tipo:
@@ -29,10 +41,10 @@ def render_filtros(df, coluna_data, coluna_tipo):
             df[coluna_tipo].dropna().astype(str).unique().tolist()
         )
 
-    # Opções dos filtros
-    opcoes_bancos = ["Todos"] + bancos
-    opcoes_arquivos = ["Todos"] + arquivos
-    opcoes_tipos = ["Todos"] + tipos
+    periodos = listar_periodos_disponiveis(
+        df,
+        coluna_data
+    )
 
     # Inicializa os estados
     if "filtro_banco" not in st.session_state:
@@ -41,41 +53,42 @@ def render_filtros(df, coluna_data, coluna_tipo):
     if "filtro_tipo" not in st.session_state:
         st.session_state["filtro_tipo"] = "Todos"
 
-    if "filtro_arquivo_unico" not in st.session_state:
-        st.session_state["filtro_arquivo_unico"] = "Todos"
+    if "filtro_periodos" not in st.session_state:
+        st.session_state["filtro_periodos"] = periodos
 
     # Corrige seleções que não existem mais nas opções
-    if st.session_state["filtro_banco"] not in opcoes_bancos:
+    if st.session_state["filtro_banco"] not in ["Todos"] + bancos:
         st.session_state["filtro_banco"] = "Todos"
 
-    if st.session_state["filtro_tipo"] not in opcoes_tipos:
+    if st.session_state["filtro_tipo"] not in ["Todos"] + tipos:
         st.session_state["filtro_tipo"] = "Todos"
 
-    if st.session_state["filtro_arquivo_unico"] not in opcoes_arquivos:
-        st.session_state["filtro_arquivo_unico"] = "Todos"
+    if not set(st.session_state["filtro_periodos"]).issubset(set(periodos)):
+        st.session_state["filtro_periodos"] = periodos
 
     # Layout dos filtros
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        banco = st.selectbox(
-            "Banco de origem",
-            options=opcoes_bancos,
-            key="filtro_banco"
+        periodos_selecionados = st.multiselect(
+            "Mês/Ano",
+            options=periodos,
+            format_func=formatar_periodo,
+            key="filtro_periodos"
         )
 
     with col2:
-        tipo = st.selectbox(
-            "Tipo de lançamento",
-            options=opcoes_tipos,
-            key="filtro_tipo"
+        banco = st.selectbox(
+            "Banco de origem",
+            options=["Todos"] + bancos,
+            key="filtro_banco"
         )
 
     with col3:
-        arquivo = st.selectbox(
-            "Arquivo de origem",
-            options=opcoes_arquivos,
-            key="filtro_arquivo_unico"
+        tipo = st.selectbox(
+            "Tipo de lançamento",
+            options=["Todos"] + tipos,
+            key="filtro_tipo"
         )
 
     # Botão para limpar os filtros
@@ -88,8 +101,8 @@ def render_filtros(df, coluna_data, coluna_tipo):
     df_filtrado = aplicar_filtros(
         df=df,
         banco=banco,
+        periodos=periodos_selecionados,
         tipo=tipo,
-        arquivo=arquivo,
         coluna_data=coluna_data,
         coluna_tipo=coluna_tipo
     )
