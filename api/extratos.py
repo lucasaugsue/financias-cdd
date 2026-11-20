@@ -66,13 +66,14 @@ def listar_extratos():
         return [dict(linha) for linha in resultado.mappings().all()]
 
 
+
 def buscar_movimentacoes(extrato_id):
     """Busca as movimentações de um extrato."""
 
     with engine.connect() as connection:
         resultado = connection.execute(
             text("""
-                SELECT dados
+                SELECT id, extrato_id, dados
                 FROM movimentacoes
                 WHERE extrato_id = :extrato_id
                 ORDER BY id;
@@ -80,9 +81,26 @@ def buscar_movimentacoes(extrato_id):
             {"extrato_id": extrato_id}
         )
 
-        registros = [linha[0] for linha in resultado.fetchall()]
+        registros = resultado.fetchall()
 
-    return pd.DataFrame(registros)
+    print("\n========== TESTE API ==========")
+    print("Extrato ID:", extrato_id)
+    print("Total de registros retornados:", len(registros))
+
+    for registro in registros:
+        print("\nID da movimentação:", registro.id)
+        print("Extrato ID:", registro.extrato_id)
+        print("Dados:", registro.dados)
+
+    df = pd.DataFrame([registro.dados for registro in registros])
+
+    print("\nDataFrame retornado:")
+    print(df.to_string(index=False))
+    print("\nTotal de linhas no DataFrame:", len(df))
+    print("==============================\n")
+
+    return df
+
 
 
 def salvar_extrato(nome_arquivo, banco_origem, hash_arquivo, df):

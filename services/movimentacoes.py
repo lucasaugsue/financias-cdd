@@ -26,7 +26,6 @@ def identificar_coluna_tipo(df):
 
 
 def preparar_movimentacoes(df):
-    """Prepara os dados para exibição e filtragem."""
     df = df.copy()
 
     coluna_data = identificar_coluna_data(df)
@@ -35,11 +34,11 @@ def preparar_movimentacoes(df):
     if coluna_data:
         df[coluna_data] = pd.to_datetime(
             df[coluna_data],
-            errors="coerce"
+            errors="coerce",
+            dayfirst=True
         ).dt.date
 
     return df, coluna_data, coluna_tipo
-
 
 def aplicar_filtros(
     df,
@@ -58,17 +57,6 @@ def aplicar_filtros(
     if banco != "Todos":
         df_filtrado = df_filtrado[
             df_filtrado["banco_origem"] == banco
-        ]
-
-    # Filtro de período
-    if coluna_data and periodo and len(periodo) == 2:
-        data_inicio, data_final = periodo
-
-        df_filtrado = df_filtrado[
-            df_filtrado[coluna_data].between(
-                data_inicio,
-                data_final
-            )
         ]
 
     # Filtro de tipo de lançamento
