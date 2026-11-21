@@ -3,8 +3,11 @@ import streamlit as st
 
 from api.extratos import listar_movimentacoes_consolidadas
 from front.components.filtros import render_filtros
-from services.movimentacoes import preparar_movimentacoes
 from front.components.indicadores import render_indicadores
+from services.movimentacoes import (
+    preparar_movimentacoes,
+    converter_valor_monetario,
+)
 
 
 def render_movimentacoes():
@@ -59,9 +62,38 @@ def render_movimentacoes():
 
             return
 
+        # Colunas que não devem aparecer na tabela
+        colunas_ocultas = [
+            "arquivo_origem",
+            "extrato_id",
+            "movimentacao_id",
+        ]
+
+        # Remove apenas da visualização, sem alterar os dados originais
+        df_visualizacao = df_filtrado.rename(
+            columns={
+                "banco_origem": "Banco",
+                "Valor": "BRL",
+            }
+        ).drop(
+            columns=colunas_ocultas,
+            errors="ignore"
+        )
+
+        # Máscara monetária brasileira, somente para visualização
+        if "BRL" in df_visualizacao.columns:
+            df_visualizacao["BRL"] = df_visualizacao["BRL"].apply(
+                converter_valor_monetario
+            ).map(
+                lambda valor: f"R$ {valor:,.2f}"
+                .replace(",", "X")
+                .replace(".", ",")
+                .replace("X", ".")
+            )
+        
         # Tabela de movimentações
         st.dataframe(
-            df_filtrado,
+            df_visualizacao,
             width="stretch",
             hide_index=True,
         )
