@@ -1,10 +1,10 @@
-
 import streamlit as st
 
 from api.extratos import criar_tabelas
 
 from front.pages.movimentacoes import render_movimentacoes
 from front.pages.extratos import render_extratos_salvos
+from front.pages.graficos import render_graficos
 
 from front.components.importar_extrato import (
     dialog_importar_extrato,
@@ -49,14 +49,18 @@ def render_app():
         ):
             dialog_importar_extrato()
 
-    # Navegação
-    aba_movimentacoes, aba_extratos = st.tabs([
+    # Navegação principal
+    aba_movimentacoes, aba_graficos, aba_extratos = st.tabs([
         "📊 Todas as movimentações",
+        "📈 Gráficos",
         "📂 Extratos salvos",
     ])
 
     with aba_movimentacoes:
         render_movimentacoes()
+
+    with aba_graficos:
+        render_graficos()
 
     with aba_extratos:
         render_extratos_salvos()
