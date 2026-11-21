@@ -8,6 +8,7 @@ from api.categorias import (
     cadastrar_regra_categorizacao,
     editar_regra_categorizacao,
     excluir_regra_categorizacao,
+    verificar_regra_categorizacao,
 )
 
 from api.extratos import (
@@ -147,9 +148,7 @@ def render_categorias():
 
         categorias_pagina = categorias_ordenadas[inicio:fim]
 
-       
         # Modais de gerenciamento
-
         @st.dialog("Adicionar palavra-chave")
         def dialog_adicionar(categoria_id, nome_categoria):
 
@@ -258,8 +257,6 @@ def render_categorias():
                         st.error("Não foi possível excluir a palavra.")
 
         # Exibir categorias
-        
-        # Exibir categorias
         for categoria in categorias_pagina:
 
             categoria_id = categoria["id"]
@@ -285,6 +282,9 @@ def render_categorias():
                     {
                         "ID": regra["id"],
                         "Palavra-chave": regra["palavra_chave"],
+                        "Data de criação": pd.to_datetime(
+                            regra["criado_em"]
+                        ).strftime("%d/%m/%Y"),
                     }
                     for regra in palavras
                 ])
@@ -387,13 +387,12 @@ def render_categorias():
                 st.rerun()
 
         st.divider()
-
+        
         # Movimentações pendentes
         st.subheader("Movimentações pendentes")
 
         st.caption(
-            "Selecione uma categoria para cada movimentação "
-            "e salve sua classificação."
+            "Selecione uma movimentação na tabela para classificá-la."
         )
 
         if movimentacoes.empty:
@@ -411,7 +410,55 @@ def render_categorias():
                 for categoria in categorias
             }
 
+            # Preparar dados da tabela
+            dados_tabela = []
+            linhas_originais = []
+
             for _, linha in movimentacoes.iterrows():
+
+                linhas_originais.append(linha)
+
+                dados_tabela.append({
+                    "Data": formatar_texto(
+                        obter_campo(linha, ["Data", "Date"])
+                    ),
+                    "Detalhes": formatar_texto(
+                        obter_campo(linha, ["Detalhes"])
+                    ),
+                    "Lançamento": formatar_texto(
+                        obter_campo(linha, ["Lançamento"])
+                    ),
+                    "Valor": formatar_texto(
+                        obter_campo(linha, ["BRL", "Valor"])
+                    ),
+                    "Tipo": formatar_texto(
+                        obter_campo(linha, ["Tipo Lançamento"])
+                    ),
+                    "Banco": formatar_texto(
+                        linha.get("banco_origem")
+                    ),
+                })
+
+            df_movimentacoes = pd.DataFrame(dados_tabela)
+
+            # Tabela de movimentações
+            evento = st.dataframe(
+                df_movimentacoes,
+                hide_index=True,
+                use_container_width=True,
+                height=300,
+                on_select="rerun",
+                selection_mode="single-row",
+                key="tabela_movimentacoes_pendentes",
+            )
+
+            linhas_selecionadas = evento.selection.rows
+
+            # Recuperar movimentação selecionada
+            if linhas_selecionadas:
+
+                indice = linhas_selecionadas[0]
+                linha = linhas_originais[indice]
 
                 movimentacao_id = int(linha["movimentacao_id"])
 
@@ -439,61 +486,167 @@ def render_categorias():
                     linha.get("banco_origem")
                 )
 
-                with st.container(border=True):
+                st.divider()
 
-                    st.caption(
-                        f"Data: {data} | Banco: {banco}"
-                    )
+                # Painel de classificação
+                st.subheader("Classificar movimentação")
+
+                with st.container(border=True):
 
                     st.markdown(f"**{detalhes}**")
 
                     if lancamento != "—":
-                        st.write(f"Lançamento: {lancamento}")
+                        st.caption(f"Lançamento: {lancamento}")
 
-                    col1, col2, col3 = st.columns([2, 2, 3])
+                    col1, col2, col3 = st.columns(3)
 
                     with col1:
-                        st.write(f"**Valor:** {valor}")
+                        st.caption("Data")
+                        st.write(data)
 
                     with col2:
-                        st.write(f"**Tipo:** {tipo}")
+                        st.caption("Valor")
+                        st.write(f"**{valor}**")
 
                     with col3:
-                        with st.form(
-                            key=f"form_categoria_{movimentacao_id}"
-                        ):
+                        st.caption("Tipo")
+                        st.write(tipo)
 
-                            categoria_escolhida = st.selectbox(
-                                "Categoria",
-                                options=list(opcoes_categorias.keys()),
-                                key=f"categoria_{movimentacao_id}",
+                    st.caption(f"Banco: {banco}")
+
+                    st.divider()
+
+                    categoria_escolhida = st.selectbox(
+                        "Categoria",
+                        options=list(opcoes_categorias.keys()),
+                        key=f"categoria_{movimentacao_id}",
+                    )
+
+                    cadastrar_palavra = st.checkbox(
+                        "Cadastrar palavra-chave para esta categoria",
+                        key=f"cadastrar_palavra_{movimentacao_id}",
+                    )
+
+                    palavra_chave = ""
+
+                    if cadastrar_palavra:
+                        palavra_chave = st.text_input(
+                            "Palavra-chave",
+                            value=(
+                                detalhes if detalhes != "—" else ""
+                            ),
+                            key=f"palavra_chave_{movimentacao_id}",
+                            help=(
+                                "Informe o texto que será utilizado "
+                                "para identificar outras movimentações."
+                            ),
+                        )
+
+                    
+                    if st.button(
+                        "Salvar classificação",
+                        type="primary",
+                        use_container_width=True,
+                        key=f"salvar_categoria_{movimentacao_id}",
+                    ):
+
+                        categoria_id = opcoes_categorias[
+                            categoria_escolhida
+                        ]
+
+                        # Verificar palavra-chave, se solicitado
+                        status_regra = None
+
+                        if cadastrar_palavra:
+
+                            if not palavra_chave.strip():
+                                st.warning(
+                                    "Informe uma palavra-chave."
+                                )
+                                st.stop()
+
+                            status_regra = verificar_regra_categorizacao(
+                                palavra_chave,
+                                categoria_id,
                             )
 
-                            salvar = st.form_submit_button(
-                                "Salvar categoria",
-                                use_container_width=True,
-                            )
+                            if status_regra["status"] == "invalida":
+                                st.warning(
+                                    "Informe uma palavra-chave válida."
+                                )
+                                st.stop()
 
-                            if salvar:
-                                categoria_id = opcoes_categorias[
-                                    categoria_escolhida
-                                ]
+                        # Salvar classificação manual
+                        sucesso = atualizar_categoria_manual(
+                            movimentacao_id,
+                            categoria_id,
+                        )
 
-                                sucesso = atualizar_categoria_manual(
-                                    movimentacao_id,
-                                    categoria_id,
+                        if sucesso:
+
+                            # Cadastrar nova regra, se necessário
+                            if cadastrar_palavra:
+
+                                if status_regra["status"] == "conflito":
+
+                                    categorias_conflito = ", ".join(
+                                        status_regra["categorias"]
+                                    )
+
+                                    st.warning(
+                                        "Classificação salva, mas a "
+                                        "palavra-chave não foi cadastrada. "
+                                        f"Ela já pertence à categoria: "
+                                        f"{categorias_conflito}."
+                                    )
+
+                                elif status_regra["status"] == "existente":
+
+                                    st.success(
+                                        "Classificação salva! "
+                                        "Essa palavra-chave já estava "
+                                        "cadastrada nesta categoria."
+                                    )
+
+                                else:
+                                    regra_criada = (
+                                        cadastrar_regra_categorizacao(
+                                            palavra_chave,
+                                            categoria_id,
+                                        )
+                                    )
+
+                                    if regra_criada:
+                                        st.success(
+                                            "Classificação salva e "
+                                            "palavra-chave cadastrada!"
+                                        )
+                                    else:
+                                        st.warning(
+                                            "Classificação salva, mas "
+                                            "não foi possível cadastrar "
+                                            "a palavra-chave."
+                                        )
+
+                            else:
+                                st.success(
+                                    "Categoria salva com sucesso!"
                                 )
 
-                                if sucesso:
-                                    st.success(
-                                        "Categoria salva com sucesso!"
-                                    )
-                                    st.rerun()
-                                else:
-                                    st.error(
-                                        "Não foi possível atualizar "
-                                        "a movimentação."
-                                    )
+                            st.rerun()
+
+                        else:
+                            st.error(
+                                "Não foi possível atualizar "
+                                "a movimentação."
+                            )
+
+                    #termina aqui
+            else:
+                st.info(
+                    "Selecione uma movimentação na tabela "
+                    "para visualizar os detalhes e classificá-la."
+                )
 
     except Exception as erro:
         st.error(f"Erro ao carregar categorias: {erro}")

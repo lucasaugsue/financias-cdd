@@ -55,7 +55,7 @@ def listar_categorias():
 def cadastrar_regra_categorizacao(palavra_chave, categoria_id):
     """Cadastra uma palavra-chave associada a uma categoria."""
 
-    palavra_chave = palavra_chave.strip()
+    palavra_chave = palavra_chave.strip().upper()
 
     if not palavra_chave:
         return False
@@ -82,10 +82,56 @@ def cadastrar_regra_categorizacao(palavra_chave, categoria_id):
         return resultado.rowcount > 0
 
 
+def verificar_regra_categorizacao(palavra_chave, categoria_id):
+    """Verifica se uma palavra-chave já está cadastrada."""
+
+    palavra_chave = palavra_chave.strip().upper()
+
+    if not palavra_chave:
+        return {"status": "invalida"}
+
+    with engine.connect() as connection:
+        resultado = connection.execute(
+            text("""
+                SELECT
+                    r.categoria_id,
+                    c.categoria
+                FROM regras_categorizacao r
+                INNER JOIN categorias c
+                    ON c.id = r.categoria_id
+                WHERE LOWER(TRIM(r.palavra_chave)) =
+                    LOWER(TRIM(:palavra_chave))
+                AND r.ativo = TRUE;
+            """),
+            {"palavra_chave": palavra_chave}
+        )
+
+        registros = resultado.mappings().all()
+
+    # Verificar se existe em outra categoria
+    conflitos = [
+        registro["categoria"]
+        for registro in registros
+        if registro["categoria_id"] != categoria_id
+    ]
+
+    if conflitos:
+        return {
+            "status": "conflito",
+            "categorias": conflitos,
+        }
+
+    # Verificar se já existe na mesma categoria
+    if registros:
+        return {"status": "existente"}
+
+    return {"status": "nova"}
+
+
 def editar_regra_categorizacao(regra_id, nova_palavra_chave):
     """Altera uma palavra-chave sem permitir duplicidade na categoria."""
 
-    nova_palavra_chave = nova_palavra_chave.strip()
+    nova_palavra_chave = nova_palavra_chave.strip().upper()
 
     if not nova_palavra_chave:
         return False
@@ -141,6 +187,7 @@ def listar_regras_categorizacao():
                 r.id,
                 r.palavra_chave,
                 r.categoria_id,
+                r.criado_em,
                 c.categoria,
                 c.finalidade
             FROM regras_categorizacao r
