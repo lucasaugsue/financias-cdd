@@ -1,12 +1,16 @@
 
 import streamlit as st
 
-from api.extratos import listar_movimentacoes_consolidadas
 from front.components.filtros import render_filtros
 from front.components.indicadores import render_indicadores
+from api.extratos import (
+    listar_movimentacoes_consolidadas,
+    atualizar_categorias_movimentacoes,
+)
 from services.movimentacoes import (
     preparar_movimentacoes,
     converter_valor_monetario,
+    categorizar_movimentacoes,
 )
 
 
@@ -31,6 +35,10 @@ def render_movimentacoes():
                 coluna_data,
                 coluna_tipo,
             ) = preparar_movimentacoes(df_consolidado)
+
+            # Categorizar movimentações automaticamente
+            df_consolidado = categorizar_movimentacoes(df_consolidado)
+            atualizar_categorias_movimentacoes(df_consolidado)
 
         # Filtros
         df_filtrado = render_filtros(df_consolidado, coluna_data, coluna_tipo)

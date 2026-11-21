@@ -1,4 +1,8 @@
 import pandas as pd
+from api.categorias import (
+    listar_regras_categorizacao,
+    listar_categorias,
+)
 
 def identificar_coluna_data(df):
     """Identifica a coluna que contém as datas das movimentações."""
@@ -21,6 +25,100 @@ def identificar_coluna_tipo(df):
         ),
         None,
     )
+
+
+def categorizar_movimentacoes(df):
+    """Categoriza movimentações sem sobrescrever categorias existentes."""
+
+    df = df.copy()
+
+    coluna_detalhes = next(
+        (
+            coluna for coluna in df.columns
+            if str(coluna).strip().casefold() == "detalhes"
+        ),
+        None,
+    )
+
+    coluna_lancamento = next(
+        (
+            coluna for coluna in df.columns
+            if str(coluna).strip().casefold() == "lançamento"
+        ),
+        None,
+    )
+
+    # Consultar categorias e regras cadastradas
+    categorias = listar_categorias()
+    regras = listar_regras_categorizacao()
+
+    # Relacionar ID com nome da categoria
+    nomes_categorias = {
+        categoria["id"]: categoria["categoria"]
+        for categoria in categorias
+    }
+
+    # Priorizar palavras-chave mais específicas
+    regras = sorted(
+        regras,
+        key=lambda regra: len(regra["palavra_chave"].strip()),
+        reverse=True,
+    )
+
+    # Preservar categorias já existentes
+    if "categoria_id" not in df.columns:
+        df["categoria_id"] = None
+
+    if "categoria" not in df.columns:
+        df["categoria"] = None
+
+    if "palavra_chave_identificada" not in df.columns:
+        df["palavra_chave_identificada"] = None
+
+    # Recuperar o nome das categorias já salvas
+    for indice, movimentacao in df.iterrows():
+        categoria_id = movimentacao["categoria_id"]
+
+        if pd.notna(categoria_id):
+            categoria_id = int(categoria_id)
+
+            df.at[indice, "categoria_id"] = categoria_id
+            df.at[indice, "categoria"] = nomes_categorias.get(
+                categoria_id,
+                movimentacao["categoria"]
+            )
+
+    # Categorizar somente movimentações pendentes
+    for indice, movimentacao in df.iterrows():
+
+        if pd.notna(movimentacao["categoria_id"]):
+            continue
+
+        textos = []
+
+        for coluna in [coluna_detalhes, coluna_lancamento]:
+            if coluna:
+                valor = movimentacao[coluna]
+
+                if pd.notna(valor):
+                    textos.append(str(valor).casefold())
+
+        texto_busca = " ".join(textos)
+
+        for regra in regras:
+
+            palavra = regra["palavra_chave"].strip().casefold()
+
+            if palavra and palavra in texto_busca:
+                df.at[indice, "categoria_id"] = regra["categoria_id"]
+                df.at[indice, "categoria"] = regra["categoria"]
+                df.at[indice, "palavra_chave_identificada"] = (
+                    regra["palavra_chave"]
+                )
+
+                break
+
+    return df
 
 
 def preparar_movimentacoes(df):
@@ -101,6 +199,7 @@ def aplicar_filtros(
         ]
 
     return df_filtrado
+
 
 def converter_valor_monetario(valor):
     """Converte valores monetários brasileiros para números."""
