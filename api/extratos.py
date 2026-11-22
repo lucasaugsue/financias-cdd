@@ -430,3 +430,22 @@ def atualizar_categorias_movimentacoes(df):
             """),
             registros,
         )
+
+
+def editar_categoria_movimentacao(movimentacao_id, categoria_id):
+    """Atualiza a categoria de uma movimentação específica."""
+
+    with engine.begin() as connection:
+        resultado = connection.execute(
+            text("""
+                UPDATE movimentacoes
+                SET categoria_id = :categoria_id
+                WHERE id = :movimentacao_id;
+            """),
+            {
+                "movimentacao_id": movimentacao_id,
+                "categoria_id": categoria_id,
+            }
+        )
+
+        return resultado.rowcount > 0
