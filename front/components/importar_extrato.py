@@ -104,7 +104,7 @@ def dialog_importar_extrato():
         if st.button(
             "💾 Salvar extrato no banco",
             type="primary",
-            use_container_width=True,
+            width='stretch',
         ):
 
             if df.empty:

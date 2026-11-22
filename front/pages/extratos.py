@@ -78,7 +78,7 @@ def render_extratos_salvos():
             if st.button(
                 "💾 Salvar alterações",
                 type="primary",
-                use_container_width=True,
+                width="stretch"
             ):
 
                 try:
@@ -108,7 +108,7 @@ def render_extratos_salvos():
             if st.button(
                 "🗑️ Excluir extrato",
                 disabled=not confirmar,
-                use_container_width=True,
+                width="stretch"
             ):
 
                 try:
