@@ -9,10 +9,26 @@ from api.extratos import (
     excluir_extrato,
 )
 
+from front.components.importar_extrato import (
+    dialog_importar_extrato,
+)
+
 
 def render_extratos_salvos():
 
-    st.subheader("Meus extratos")
+    col_titulo, col_botao = st.columns([3, 1])
+
+    with col_titulo:
+        st.subheader("Meus extratos")
+
+    with col_botao:
+        if st.button(
+            "📥 Importar extrato",
+            type="primary",
+            width="stretch",
+            key="botao_importar_extrato",
+        ):
+            dialog_importar_extrato()
 
     try:
         extratos = listar_extratos()

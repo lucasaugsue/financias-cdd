@@ -8,6 +8,7 @@ from api.categorias import (
     cadastrar_regra_categorizacao,
     editar_regra_categorizacao,
     excluir_regra_categorizacao,
+    cadastrar_categoria,
 )
 
 from front.components.cache import (
@@ -15,6 +16,47 @@ from front.components.cache import (
     carregar_regras,
     limpar_cache_categorias,
 )
+
+
+
+@st.dialog("Nova categoria")
+def dialog_nova_categoria():
+
+    with st.form("form_nova_categoria"):
+
+        nome = st.text_input(
+            "Nome da categoria",
+            placeholder="Ex.: Academia, Pets, Viagens..."
+        )
+
+        finalidade = st.selectbox(
+            "Finalidade",
+            options=["Despesa", "Receita", "Ambas"],
+        )
+
+        confirmar = st.form_submit_button(
+            "Criar categoria",
+            type="primary",
+            width="stretch",
+        )
+
+        if confirmar:
+
+            resultado = cadastrar_categoria(
+                nome,
+                finalidade,
+            )
+
+            if resultado == "invalida":
+                st.warning("Informe um nome válido.")
+
+            elif resultado == "existente":
+                st.warning("Essa categoria já está cadastrada.")
+
+            elif resultado == "criada":
+                limpar_cache_categorias()
+                st.success("Categoria criada com sucesso!")
+                st.rerun()
 
 
 @st.fragment
@@ -296,9 +338,22 @@ def render_lista_categorias(categorias, regras):
         )
 
 
+
 def render_categorias():
 
-    st.subheader("Gerenciar categorias")
+    col_titulo, col_botao = st.columns([3, 1])
+
+    with col_titulo:
+        st.subheader("Gerenciar categorias")
+
+    with col_botao:
+        if st.button(
+            "+ Nova categoria",
+            type="primary",
+            width="stretch",
+            key="botao_nova_categoria",
+        ):
+            dialog_nova_categoria()
 
     try:
         categorias = carregar_categorias()

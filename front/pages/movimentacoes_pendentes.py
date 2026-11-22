@@ -5,6 +5,7 @@ import streamlit as st
 from api.categorias import (
     cadastrar_regra_categorizacao,
     verificar_regra_categorizacao,
+    cadastrar_categoria,
 )
 
 from api.extratos import (
@@ -95,6 +96,51 @@ def preparar_tabela_movimentacoes(movimentacoes):
     return pd.DataFrame(registros)
 
 
+@st.dialog("Criar nova categoria")
+def dialog_nova_categoria():
+
+    with st.form("form_nova_categoria"):
+
+        nome = st.text_input(
+            "Nome da categoria",
+            placeholder="Ex.: Pets, Academia, Viagens..."
+        )
+
+        finalidade = st.selectbox(
+            "Finalidade",
+            options=["Despesa", "Receita", "Ambas"],
+        )
+
+        salvar = st.form_submit_button(
+            "Criar categoria",
+            type="primary",
+            width="stretch",
+        )
+
+        if salvar:
+
+            resultado = cadastrar_categoria(
+                nome,
+                finalidade,
+            )
+
+            if resultado == "invalida":
+                st.warning("Informe um nome válido para a categoria.")
+
+            elif resultado == "existente":
+                st.warning("Essa categoria já está cadastrada.")
+
+            else:
+                limpar_cache_categorias()
+
+                st.session_state["categoria_movimentacao_pendente"] = nome.strip()
+
+                st.success("Categoria criada com sucesso!")
+
+                st.rerun()
+
+
+
 def render_painel_classificacao(linha, categorias):
 
     st.subheader("Classificar movimentação")
@@ -165,6 +211,12 @@ def render_painel_classificacao(linha, categorias):
             for categoria in categorias
         ]
 
+        if st.button(
+            "+ Nova categoria",
+            key="nova_categoria_pendente",
+        ):
+            dialog_nova_categoria()
+
         opcoes_categorias = {
             categoria["categoria"]: categoria["id"]
             for categoria in categorias_validas
@@ -190,7 +242,7 @@ def render_painel_classificacao(linha, categorias):
             palavra_chave = st.text_input(
                 "Palavra-chave",
                 placeholder="Ex.: MERCADO, UBER, FARMACIA...",
-                key="palavra_chave_movimentacao",
+                key=f"palavra_chave_movimentacao_{obter_campo(linha, ['movimentacao_id', 'id'])}",
             )
 
         if st.button(
@@ -289,12 +341,21 @@ def _render_tabela_movimentacoes_pendentes(
 
         indice = linhas_selecionadas[0]
 
-        linha = movimentacoes.iloc[indice]
+        if indice < len(movimentacoes):
 
-        render_painel_classificacao(
-            linha,
-            categorias,
-        )
+            linha = movimentacoes.iloc[indice]
+
+            render_painel_classificacao(
+                linha,
+                categorias,
+            )
+
+        else:
+
+            st.info(
+                "A lista de movimentações foi atualizada. "
+                "Selecione novamente uma movimentação."
+            )
 
     else:
 

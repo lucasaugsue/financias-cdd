@@ -52,6 +52,45 @@ def listar_categorias():
         return [dict(linha) for linha in resultado.mappings().all()]
 
 
+def cadastrar_categoria(categoria, finalidade):
+    """Cadastra uma nova categoria."""
+
+    categoria = categoria.strip()
+
+    if not categoria:
+        return "invalida"
+
+    if finalidade not in ["Receita", "Despesa", "Ambas"]:
+        return "invalida"
+
+    with engine.begin() as connection:
+
+        existente = connection.execute(
+            text("""
+                SELECT id
+                FROM categorias
+                WHERE LOWER(TRIM(categoria)) = LOWER(TRIM(:categoria));
+            """),
+            {"categoria": categoria}
+        ).first()
+
+        if existente:
+            return "existente"
+
+        connection.execute(
+            text("""
+                INSERT INTO categorias (categoria, finalidade)
+                VALUES (:categoria, :finalidade);
+            """),
+            {
+                "categoria": categoria,
+                "finalidade": finalidade,
+            }
+        )
+
+    return "criada"
+
+
 def cadastrar_regra_categorizacao(palavra_chave, categoria_id):
     """Cadastra uma palavra-chave associada a uma categoria."""
 

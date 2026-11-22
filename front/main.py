@@ -10,10 +10,6 @@ from front.pages.graficos import render_graficos
 from front.pages.movimentacoes_pendentes import render_movimentacoes_pendentes
 from front.pages.categorias import render_categorias
 
-from front.components.importar_extrato import (
-    dialog_importar_extrato,
-)
-
 
 def render_app():
 
@@ -34,24 +30,8 @@ def render_app():
         return
 
     # Cabeçalho
-    col1, col2 = st.columns([5, 1])
-
-    with col1:
-        st.title("💰 Financias CDD")
-        st.caption(
-            "Seu gerenciador financeiro pessoal"
-        )
-
-    with col2:
-        st.write("")
-        st.write("")
-
-        if st.button(
-            "📥 Importar extrato",
-            type="primary",
-            width="stretch",
-        ):
-            dialog_importar_extrato()
+    st.title("💰 Financias CDD")
+    st.caption("Seu gerenciador financeiro pessoal")
 
     # Navegação principal
     (
