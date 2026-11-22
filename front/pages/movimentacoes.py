@@ -75,6 +75,8 @@ def render_movimentacoes():
             "arquivo_origem",
             "extrato_id",
             "movimentacao_id",
+            "categoria_id",
+            "palavra_chave_identificada",
         ]
 
         # Remove apenas da visualização, sem alterar os dados originais
