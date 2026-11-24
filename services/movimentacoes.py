@@ -1,8 +1,11 @@
+
 import pandas as pd
+
 from api.categorias import (
     listar_regras_categorizacao,
     listar_categorias,
 )
+
 
 def identificar_coluna_data(df):
     """Identifica a coluna que contém as datas das movimentações."""
@@ -27,8 +30,8 @@ def identificar_coluna_tipo(df):
     )
 
 
-def categorizar_movimentacoes(df):
-    """Categoriza movimentações sem sobrescrever categorias existentes."""
+def categorizar_movimentacoes(df, usuario_id):
+    """Categoriza movimentações usando as regras do usuário."""
 
     df = df.copy()
 
@@ -48,9 +51,9 @@ def categorizar_movimentacoes(df):
         None,
     )
 
-    # Consultar categorias e regras cadastradas
-    categorias = listar_categorias()
-    regras = listar_regras_categorizacao()
+    # Consultar somente categorias e regras do usuário
+    categorias = listar_categorias(usuario_id)
+    regras = listar_regras_categorizacao(usuario_id)
 
     # Relacionar ID com nome da categoria
     nomes_categorias = {
@@ -171,7 +174,6 @@ def aplicar_filtros(
 
     df_filtrado = df.copy()
 
-    # Filtro de mês/ano
     if periodos and coluna_data and coluna_data in df_filtrado.columns:
         datas = pd.to_datetime(
             df_filtrado[coluna_data],
@@ -182,13 +184,11 @@ def aplicar_filtros(
             datas.dt.strftime("%Y-%m").isin(periodos)
         ]
 
-    # Filtro de banco de origem
     if banco != "Todos":
         df_filtrado = df_filtrado[
             df_filtrado["banco_origem"] == banco
         ]
 
-    # Filtro de tipo de lançamento
     if coluna_tipo and tipo != "Todos":
         df_filtrado = df_filtrado[
             df_filtrado[coluna_tipo]
@@ -262,9 +262,7 @@ def calcular_indicadores(
     )
 
     entradas = valores[tipos == "entrada"].sum()
-
     saidas = valores[tipos == "saída"].abs().sum()
-
     saldo = entradas - saidas
 
     return {

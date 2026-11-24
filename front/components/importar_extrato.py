@@ -12,6 +12,8 @@ from services.arquivos import (
 @st.dialog("Importar novo extrato", width="large")
 def dialog_importar_extrato():
 
+    usuario_id = st.session_state["usuario"]["id"]
+
     st.write(
         "Selecione o banco e o arquivo que deseja importar."
     )
@@ -28,14 +30,14 @@ def dialog_importar_extrato():
             "Inter",
             "Outro",
         ],
-        key="modal_banco_origem",
+        key=f"modal_banco_origem_{usuario_id}",
     )
 
     arquivo = st.file_uploader(
         "Selecione seu extrato",
         type=["csv", "xlsx"],
         accept_multiple_files=False,
-        key="modal_arquivo",
+        key=f"modal_arquivo_{usuario_id}",
     )
 
     if arquivo is None:
@@ -104,7 +106,8 @@ def dialog_importar_extrato():
         if st.button(
             "💾 Salvar extrato no banco",
             type="primary",
-            width='stretch',
+            width="stretch",
+            key=f"salvar_extrato_{usuario_id}",
         ):
 
             if df.empty:
@@ -121,6 +124,7 @@ def dialog_importar_extrato():
                         banco_origem,
                         hash_arquivo,
                         df,
+                        usuario_id,
                     )
 
                 st.success(

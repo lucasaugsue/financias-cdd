@@ -121,13 +121,16 @@ def render_grafico_evolucao(df, coluna_data, coluna_tipo):
 
 def render_grafico_categorias(df):
 
+    usuario_id = st.session_state["usuario"]["id"]
+
     st.subheader("Análise por categorias")
 
     if "categoria_id" not in df.columns:
         st.warning("Não foi possível identificar as categorias.")
         return
 
-    categorias = listar_categorias()
+    # Busca somente as categorias do usuário autenticado
+    categorias = listar_categorias(usuario_id)
 
     if not categorias:
         st.info("Nenhuma categoria cadastrada.")
@@ -162,7 +165,7 @@ def render_grafico_categorias(df):
         tipo_analise = st.selectbox(
             "Selecione o tipo",
             ["Despesas", "Receitas"],
-            key="seletor_tipo_categorias"
+            key=f"seletor_tipo_categorias_{usuario_id}"
         )
 
     # Filtra receitas ou despesas
@@ -264,4 +267,3 @@ def render_grafico_categorias(df):
             hide_index=True,
             height=450
         )
-

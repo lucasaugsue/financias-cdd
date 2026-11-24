@@ -1,3 +1,4 @@
+
 import json
 
 import pandas as pd
@@ -11,29 +12,28 @@ def criar_tabelas():
 
     with engine.begin() as connection:
 
-        # Tabela de extratos
         connection.execute(text("""
             CREATE TABLE IF NOT EXISTS extratos (
                 id SERIAL PRIMARY KEY,
+                usuario_id INTEGER REFERENCES usuarios(id),
                 nome_arquivo TEXT NOT NULL,
                 banco_origem TEXT NOT NULL,
-                hash_arquivo VARCHAR(64) UNIQUE NOT NULL,
+                hash_arquivo VARCHAR(64) NOT NULL,
                 quantidade_registros INTEGER NOT NULL DEFAULT 0,
                 criado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
         """))
 
-        # Tabela de categorias
         connection.execute(text("""
             CREATE TABLE IF NOT EXISTS categorias (
                 id SERIAL PRIMARY KEY,
-                categoria TEXT UNIQUE NOT NULL,
+                usuario_id INTEGER REFERENCES usuarios(id),
+                categoria TEXT NOT NULL,
                 finalidade TEXT NOT NULL
                     CHECK (finalidade IN ('Receita', 'Despesa', 'Ambas'))
             );
         """))
 
-        # Tabela de movimentações
         connection.execute(text("""
             CREATE TABLE IF NOT EXISTS movimentacoes (
                 id SERIAL PRIMARY KEY,
@@ -45,10 +45,10 @@ def criar_tabelas():
             );
         """))
 
-        # Tabela de regras de categorização
         connection.execute(text("""
             CREATE TABLE IF NOT EXISTS regras_categorizacao (
                 id SERIAL PRIMARY KEY,
+                usuario_id INTEGER REFERENCES usuarios(id),
                 palavra_chave TEXT NOT NULL,
                 categoria_id INTEGER NOT NULL
                     REFERENCES categorias(id) ON DELETE CASCADE,
@@ -58,23 +58,29 @@ def criar_tabelas():
             );
         """))
 
-        # Impedir palavras duplicadas na mesma categoria
         connection.execute(text("""
-            CREATE UNIQUE INDEX IF NOT EXISTS
-                idx_regra_palavra_categoria
-            ON regras_categorizacao (
-                LOWER(TRIM(palavra_chave)),
-                categoria_id
-            );
+            ALTER TABLE extratos
+            ADD COLUMN IF NOT EXISTS usuario_id INTEGER
+            REFERENCES usuarios(id);
         """))
 
-        # Migração para bancos que já possuem a tabela movimentacoes
+        connection.execute(text("""
+            ALTER TABLE categorias
+            ADD COLUMN IF NOT EXISTS usuario_id INTEGER
+            REFERENCES usuarios(id);
+        """))
+
+        connection.execute(text("""
+            ALTER TABLE regras_categorizacao
+            ADD COLUMN IF NOT EXISTS usuario_id INTEGER
+            REFERENCES usuarios(id);
+        """))
+
         connection.execute(text("""
             ALTER TABLE movimentacoes
             ADD COLUMN IF NOT EXISTS categoria_id INTEGER;
         """))
 
-        # Garante a chave estrangeira mesmo em bancos já existentes
         connection.execute(text("""
             DO $$
             BEGIN
@@ -92,7 +98,6 @@ def criar_tabelas():
             END $$;
         """))
 
-        # Mantém a compatibilidade com extratos antigos
         connection.execute(text("""
             ALTER TABLE extratos
             ADD COLUMN IF NOT EXISTS banco_origem TEXT;
@@ -109,48 +114,77 @@ def criar_tabelas():
             ALTER COLUMN banco_origem SET NOT NULL;
         """))
 
-
-def listar_extratos():
-    """Retorna os extratos salvos."""
-
-    with engine.connect() as connection:
-        resultado = connection.execute(text("""
-            SELECT
-                id,
-                nome_arquivo,
-                banco_origem,
-                quantidade_registros,
-                criado_em
-            FROM extratos
-            ORDER BY criado_em DESC;
+        connection.execute(text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_extratos_usuario_hash
+            ON extratos (usuario_id, hash_arquivo)
+            WHERE usuario_id IS NOT NULL;
         """))
 
-        return [dict(linha) for linha in resultado.mappings().all()]
+        connection.execute(text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_categorias_usuario_nome
+            ON categorias (usuario_id, LOWER(TRIM(categoria)))
+            WHERE usuario_id IS NOT NULL;
+        """))
+
+        connection.execute(text("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_regra_palavra_categoria
+            ON regras_categorizacao (
+                LOWER(TRIM(palavra_chave)),
+                categoria_id
+            )
+            WHERE ativo = TRUE;
+        """))
 
 
-def buscar_movimentacoes(extrato_id):
-    """Busca as movimentações de um extrato."""
+def listar_extratos(usuario_id):
+    """Retorna somente os extratos do usuário."""
 
     with engine.connect() as connection:
         resultado = connection.execute(
             text("""
-                SELECT id, extrato_id, dados
-                FROM movimentacoes
-                WHERE extrato_id = :extrato_id
-                ORDER BY id;
+                SELECT
+                    id,
+                    nome_arquivo,
+                    banco_origem,
+                    quantidade_registros,
+                    criado_em
+                FROM extratos
+                WHERE usuario_id = :usuario_id
+                ORDER BY criado_em DESC;
             """),
-            {"extrato_id": extrato_id}
+            {"usuario_id": usuario_id}
         )
 
-        registros = resultado.fetchall()
-
-    df = pd.DataFrame([registro.dados for registro in registros])
-
-    return df
+        return [dict(linha) for linha in resultado.mappings().all()]
 
 
-def salvar_extrato(nome_arquivo, banco_origem, hash_arquivo, df):
-    """Salva um novo extrato e suas movimentações."""
+def buscar_movimentacoes(extrato_id, usuario_id):
+    """Busca movimentações de um extrato pertencente ao usuário."""
+
+    with engine.connect() as connection:
+        resultado = connection.execute(
+            text("""
+                SELECT m.id, m.extrato_id, m.dados
+                FROM movimentacoes m
+                INNER JOIN extratos e
+                    ON e.id = m.extrato_id
+                WHERE m.extrato_id = :extrato_id
+                  AND e.usuario_id = :usuario_id
+                ORDER BY m.id;
+            """),
+            {
+                "extrato_id": extrato_id,
+                "usuario_id": usuario_id
+            }
+        )
+
+        registros = resultado.mappings().all()
+
+    return pd.DataFrame([dict(registro["dados"]) for registro in registros])
+
+
+def salvar_extrato(nome_arquivo, banco_origem, hash_arquivo, df, usuario_id):
+    """Salva um extrato e suas movimentações para um usuário."""
 
     registros = json.loads(
         df.to_json(
@@ -166,9 +200,13 @@ def salvar_extrato(nome_arquivo, banco_origem, hash_arquivo, df):
             text("""
                 SELECT id
                 FROM extratos
-                WHERE hash_arquivo = :hash_arquivo;
+                WHERE hash_arquivo = :hash_arquivo
+                  AND usuario_id = :usuario_id;
             """),
-            {"hash_arquivo": hash_arquivo}
+            {
+                "hash_arquivo": hash_arquivo,
+                "usuario_id": usuario_id
+            }
         ).first()
 
         if duplicado:
@@ -177,12 +215,14 @@ def salvar_extrato(nome_arquivo, banco_origem, hash_arquivo, df):
         resultado = connection.execute(
             text("""
                 INSERT INTO extratos (
+                    usuario_id,
                     nome_arquivo,
                     banco_origem,
                     hash_arquivo,
                     quantidade_registros
                 )
                 VALUES (
+                    :usuario_id,
                     :nome,
                     :banco,
                     :hash,
@@ -191,7 +231,8 @@ def salvar_extrato(nome_arquivo, banco_origem, hash_arquivo, df):
                 RETURNING id;
             """),
             {
-                "nome": nome_arquivo, 
+                "usuario_id": usuario_id,
+                "nome": nome_arquivo,
                 "banco": banco_origem,
                 "hash": hash_arquivo,
                 "quantidade": len(registros)
@@ -224,8 +265,8 @@ def salvar_extrato(nome_arquivo, banco_origem, hash_arquivo, df):
     return extrato_id
 
 
-def atualizar_extrato(extrato_id, df):
-    """Substitui as movimentações pelas versões editadas."""
+def atualizar_extrato(extrato_id, df, usuario_id):
+    """Substitui as movimentações de um extrato do usuário."""
 
     registros = json.loads(
         df.to_json(
@@ -238,8 +279,16 @@ def atualizar_extrato(extrato_id, df):
     with engine.begin() as connection:
 
         existe = connection.execute(
-            text("SELECT id FROM extratos WHERE id = :id"),
-            {"id": extrato_id}
+            text("""
+                SELECT id
+                FROM extratos
+                WHERE id = :extrato_id
+                  AND usuario_id = :usuario_id;
+            """),
+            {
+                "extrato_id": extrato_id,
+                "usuario_id": usuario_id
+            }
         ).first()
 
         if not existe:
@@ -278,42 +327,55 @@ def atualizar_extrato(extrato_id, df):
             text("""
                 UPDATE extratos
                 SET quantidade_registros = :quantidade
-                WHERE id = :extrato_id;
+                WHERE id = :extrato_id
+                  AND usuario_id = :usuario_id;
             """),
             {
                 "quantidade": len(registros),
-                "extrato_id": extrato_id
+                "extrato_id": extrato_id,
+                "usuario_id": usuario_id
             }
         )
 
 
-def excluir_extrato(extrato_id):
-    """Exclui um extrato e suas movimentações."""
+def excluir_extrato(extrato_id, usuario_id):
+    """Exclui somente um extrato pertencente ao usuário."""
 
     with engine.begin() as connection:
         connection.execute(
-            text("DELETE FROM extratos WHERE id = :id"),
-            {"id": extrato_id}
+            text("""
+                DELETE FROM extratos
+                WHERE id = :extrato_id
+                  AND usuario_id = :usuario_id;
+            """),
+            {
+                "extrato_id": extrato_id,
+                "usuario_id": usuario_id
+            }
         )
 
 
-def listar_movimentacoes_consolidadas():
-    """Retorna movimentações de todos os extratos com o banco de origem."""
+def listar_movimentacoes_consolidadas(usuario_id):
+    """Retorna movimentações dos extratos do usuário."""
 
     with engine.connect() as connection:
-        resultado = connection.execute(text("""
-            SELECT
-                m.id AS movimentacao_id,
-                m.categoria_id,
-                m.extrato_id,
-                e.banco_origem,
-                e.nome_arquivo,
-                m.dados
-            FROM movimentacoes m
-            INNER JOIN extratos e
-                ON e.id = m.extrato_id
-            ORDER BY e.banco_origem, m.id;
-        """))
+        resultado = connection.execute(
+            text("""
+                SELECT
+                    m.id AS movimentacao_id,
+                    m.categoria_id,
+                    m.extrato_id,
+                    e.banco_origem,
+                    e.nome_arquivo,
+                    m.dados
+                FROM movimentacoes m
+                INNER JOIN extratos e
+                    ON e.id = m.extrato_id
+                WHERE e.usuario_id = :usuario_id
+                ORDER BY e.banco_origem, m.id;
+            """),
+            {"usuario_id": usuario_id}
+        )
 
         linhas = resultado.mappings().all()
 
@@ -333,22 +395,26 @@ def listar_movimentacoes_consolidadas():
     return pd.DataFrame(registros)
 
 
-def listar_movimentacoes_pendentes():
-    """Retorna movimentações que ainda não possuem categoria."""
+def listar_movimentacoes_pendentes(usuario_id):
+    """Retorna movimentações sem categoria do usuário."""
 
     with engine.connect() as connection:
-        resultado = connection.execute(text("""
-            SELECT
-                m.id AS movimentacao_id,
-                m.extrato_id,
-                e.banco_origem,
-                m.dados
-            FROM movimentacoes m
-            INNER JOIN extratos e
-                ON e.id = m.extrato_id
-            WHERE m.categoria_id IS NULL
-            ORDER BY m.id;
-        """))
+        resultado = connection.execute(
+            text("""
+                SELECT
+                    m.id AS movimentacao_id,
+                    m.extrato_id,
+                    e.banco_origem,
+                    m.dados
+                FROM movimentacoes m
+                INNER JOIN extratos e
+                    ON e.id = m.extrato_id
+                WHERE m.categoria_id IS NULL
+                  AND e.usuario_id = :usuario_id
+                ORDER BY m.id;
+            """),
+            {"usuario_id": usuario_id}
+        )
 
         linhas = resultado.mappings().all()
 
@@ -366,45 +432,68 @@ def listar_movimentacoes_pendentes():
     return pd.DataFrame(registros)
 
 
-def contar_movimentacoes_categorizadas():
-    """Retorna a quantidade de movimentações pendentes e categorizadas."""
+def contar_movimentacoes_categorizadas(usuario_id):
+    """Conta movimentações pendentes e categorizadas do usuário."""
 
     with engine.connect() as connection:
-        resultado = connection.execute(text("""
-            SELECT
-                COUNT(*) AS total,
-                COUNT(*) FILTER (
-                    WHERE categoria_id IS NULL
-                ) AS pendentes,
-                COUNT(*) FILTER (
-                    WHERE categoria_id IS NOT NULL
-                ) AS categorizadas
-            FROM movimentacoes;
-        """))
+        resultado = connection.execute(
+            text("""
+                SELECT
+                    COUNT(*) AS total,
+                    COUNT(*) FILTER (
+                        WHERE m.categoria_id IS NULL
+                    ) AS pendentes,
+                    COUNT(*) FILTER (
+                        WHERE m.categoria_id IS NOT NULL
+                    ) AS categorizadas
+                FROM movimentacoes m
+                INNER JOIN extratos e
+                    ON e.id = m.extrato_id
+                WHERE e.usuario_id = :usuario_id;
+            """),
+            {"usuario_id": usuario_id}
+        )
 
         return dict(resultado.mappings().one())
 
 
-def atualizar_categoria_manual(movimentacao_id, categoria_id):
-    """Salva manualmente a categoria de uma movimentação."""
+def atualizar_categoria_manual(movimentacao_id, categoria_id, usuario_id):
+    """Classifica uma movimentação pertencente ao usuário."""
 
     with engine.begin() as connection:
         resultado = connection.execute(
             text("""
-                UPDATE movimentacoes
+                UPDATE movimentacoes m
                 SET categoria_id = :categoria_id
-                WHERE id = :movimentacao_id;
+                WHERE m.id = :movimentacao_id
+
+                  AND EXISTS (
+                      SELECT 1
+                      FROM extratos e
+                      WHERE e.id = m.extrato_id
+                        AND e.usuario_id = :usuario_id
+                  )
+
+                  AND EXISTS (
+                      SELECT 1
+                      FROM categorias c
+                      WHERE c.id = :categoria_id
+                        AND c.usuario_id = :usuario_id
+                  );
             """),
             {
                 "movimentacao_id": movimentacao_id,
                 "categoria_id": categoria_id,
-            },
+                "usuario_id": usuario_id
+            }
         )
 
         return resultado.rowcount > 0
 
 
-def atualizar_categorias_movimentacoes(df):
+def atualizar_categorias_movimentacoes(df, usuario_id):
+    """Atualiza categorias em lote somente nas movimentações do usuário."""
+
     registros = []
 
     for _, linha in df.iterrows():
@@ -415,6 +504,7 @@ def atualizar_categorias_movimentacoes(df):
             registros.append({
                 "movimentacao_id": int(movimentacao_id),
                 "categoria_id": int(categoria_id),
+                "usuario_id": usuario_id
             })
 
     if not registros:
@@ -423,28 +513,57 @@ def atualizar_categorias_movimentacoes(df):
     with engine.begin() as connection:
         connection.execute(
             text("""
-                UPDATE movimentacoes
+                UPDATE movimentacoes m
                 SET categoria_id = :categoria_id
-                WHERE id = :movimentacao_id
-                AND categoria_id IS NULL;
+                WHERE m.id = :movimentacao_id
+                  AND m.categoria_id IS NULL
+
+                  AND EXISTS (
+                      SELECT 1
+                      FROM extratos e
+                      WHERE e.id = m.extrato_id
+                        AND e.usuario_id = :usuario_id
+                  )
+
+                  AND EXISTS (
+                      SELECT 1
+                      FROM categorias c
+                      WHERE c.id = :categoria_id
+                        AND c.usuario_id = :usuario_id
+                  );
             """),
-            registros,
+            registros
         )
 
 
-def editar_categoria_movimentacao(movimentacao_id, categoria_id):
-    """Atualiza a categoria de uma movimentação específica."""
+def editar_categoria_movimentacao(movimentacao_id, categoria_id, usuario_id):
+    """Atualiza a categoria de uma movimentação do usuário."""
 
     with engine.begin() as connection:
         resultado = connection.execute(
             text("""
-                UPDATE movimentacoes
+                UPDATE movimentacoes m
                 SET categoria_id = :categoria_id
-                WHERE id = :movimentacao_id;
+                WHERE m.id = :movimentacao_id
+
+                  AND EXISTS (
+                      SELECT 1
+                      FROM extratos e
+                      WHERE e.id = m.extrato_id
+                        AND e.usuario_id = :usuario_id
+                  )
+
+                  AND EXISTS (
+                      SELECT 1
+                      FROM categorias c
+                      WHERE c.id = :categoria_id
+                        AND c.usuario_id = :usuario_id
+                  );
             """),
             {
                 "movimentacao_id": movimentacao_id,
                 "categoria_id": categoria_id,
+                "usuario_id": usuario_id
             }
         )
 

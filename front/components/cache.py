@@ -13,23 +13,23 @@ from api.extratos import (
 
 
 @st.cache_data(ttl=60)
-def carregar_categorias():
-    return listar_categorias()
+def carregar_categorias(usuario_id):
+    return listar_categorias(usuario_id)
 
 
 @st.cache_data(ttl=60)
-def carregar_regras():
-    return listar_regras_categorizacao()
+def carregar_regras(usuario_id):
+    return listar_regras_categorizacao(usuario_id)
 
 
 @st.cache_data(ttl=60)
-def carregar_movimentacoes_pendentes():
-    return listar_movimentacoes_pendentes()
+def carregar_movimentacoes_pendentes(usuario_id):
+    return listar_movimentacoes_pendentes(usuario_id)
 
 
 @st.cache_data(ttl=60)
-def carregar_indicadores():
-    return contar_movimentacoes_categorizadas()
+def carregar_indicadores(usuario_id):
+    return contar_movimentacoes_categorizadas(usuario_id)
 
 
 def limpar_cache_categorias():

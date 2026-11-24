@@ -4,11 +4,15 @@ import streamlit as st
 from api.extratos import criar_tabelas
 from api.categorias import criar_categorias_padrao
 
+from front.pages.login import render_login
+
 from front.pages.movimentacoes import render_movimentacoes
 from front.pages.extratos import render_extratos_salvos
 from front.pages.graficos import render_graficos
 from front.pages.movimentacoes_pendentes import render_movimentacoes_pendentes
 from front.pages.categorias import render_categorias
+
+from front.components.cache import limpar_cache_categorias
 
 
 def render_app():
@@ -19,19 +23,67 @@ def render_app():
         layout="wide",
     )
 
+    # Inicialização do banco
     try:
         criar_tabelas()
-        criar_categorias_padrao()
 
     except Exception as erro:
-        st.error(
-            f"Erro ao conectar com o banco: {erro}"
-        )
+        st.error(f"Erro ao conectar com o banco: {erro}")
         return
 
-    # Cabeçalho
-    st.title("💰 Financias CDD")
-    st.caption("Seu gerenciador financeiro pessoal")
+    # Verifica se existe usuário autenticado
+    usuario = st.session_state.get("usuario")
+
+    if not usuario:
+        render_login()
+        return
+
+    usuario_id = usuario["id"]
+
+    # Cria as categorias padrão do usuário, caso ainda não existam
+    try:
+        criar_categorias_padrao(usuario_id)
+
+    except Exception as erro:
+        st.error(f"Erro ao carregar as categorias: {erro}")
+        return
+
+    # Estilização do cabeçalho
+    st.markdown(
+        """
+        <style>
+        .st-key-cabecalho {
+            position: sticky;
+            top: 0;
+            z-index: 999;
+            background-color: var(--background-color);
+            padding: 0.8rem 0;
+            border-bottom: 1px solid var(--secondary-background-color);
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Cabeçalho superior
+    with st.container(key="cabecalho"):
+
+        coluna_titulo, coluna_usuario, coluna_sair = st.columns(
+            [5, 2, 1],
+            vertical_alignment="center",
+        )
+
+        with coluna_titulo:
+            st.markdown("### 💰 Financias CDD")
+
+        with coluna_usuario:
+            st.markdown(f"Olá, **{usuario['nome']}**!")
+
+        with coluna_sair:
+            if st.button("Sair", use_container_width=True):
+                limpar_cache_categorias()
+                st.session_state.pop("usuario", None)
+                st.rerun()
 
     # Navegação principal
     (

@@ -1,3 +1,4 @@
+
 import streamlit as st
 
 from front.components.filtros import render_filtros
@@ -19,9 +20,9 @@ from services.movimentacoes import (
 
 
 @st.dialog("Detalhes da movimentação", dismissible=False)
-def dialog_movimentacao(linha):
+def dialog_movimentacao(linha, usuario_id):
 
-    categorias = listar_categorias()
+    categorias = listar_categorias(usuario_id)
 
     movimentacao_id = int(linha["movimentacao_id"])
 
@@ -91,6 +92,7 @@ def dialog_movimentacao(linha):
             sucesso = editar_categoria_movimentacao(
                 movimentacao_id,
                 nova_categoria,
+                usuario_id,
             )
 
             if sucesso:
@@ -104,13 +106,17 @@ def dialog_movimentacao(linha):
 
 def render_movimentacoes():
 
+    usuario_id = st.session_state["usuario"]["id"]
+
     st.subheader("Todas as movimentações")
 
     try:
         # Consulta e preparação dos dados
         with st.spinner("Carregando movimentações..."):
 
-            df_consolidado = listar_movimentacoes_consolidadas()
+            df_consolidado = listar_movimentacoes_consolidadas(
+                usuario_id
+            )
 
             if df_consolidado.empty:
                 st.info(
@@ -125,11 +131,22 @@ def render_movimentacoes():
             ) = preparar_movimentacoes(df_consolidado)
 
             # Categorizar movimentações automaticamente
-            df_consolidado = categorizar_movimentacoes(df_consolidado)
-            atualizar_categorias_movimentacoes(df_consolidado)
+            df_consolidado = categorizar_movimentacoes(
+                df_consolidado,
+                usuario_id,
+            )
+
+            atualizar_categorias_movimentacoes(
+                df_consolidado,
+                usuario_id,
+            )
 
         # Filtros
-        df_filtrado = render_filtros(df_consolidado, coluna_data, coluna_tipo)
+        df_filtrado = render_filtros(
+            df_consolidado,
+            coluna_data,
+            coluna_tipo,
+        )
 
         st.divider()
 
@@ -188,7 +205,7 @@ def render_movimentacoes():
                 .replace(".", ",")
                 .replace("X", ".")
             )
-        
+
         # Inicializa o controle da tabela
         if "versao_tabela_movimentacoes" not in st.session_state:
             st.session_state["versao_tabela_movimentacoes"] = 0
@@ -240,9 +257,10 @@ def render_movimentacoes():
 
                 st.session_state["versao_tabela_movimentacoes"] += 1
 
-                dialog_movimentacao(linha_selecionada)
-
-
+                dialog_movimentacao(
+                    linha_selecionada,
+                    usuario_id,
+                )
 
     except Exception as erro:
         st.error(

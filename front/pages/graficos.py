@@ -12,6 +12,8 @@ from front.components.graficos import (
 
 def render_graficos():
 
+    usuario_id = st.session_state["usuario"]["id"]
+
     st.subheader("Análise financeira")
 
     # Seletor principal
@@ -21,13 +23,13 @@ def render_graficos():
             "Evolução financeira mensal",
             "Análise por categorias",
         ],
-        key="seletor_principal_graficos",
+        key=f"seletor_principal_graficos_{usuario_id}",
     )
 
     try:
         with st.spinner("Carregando informações financeiras..."):
 
-            df_consolidado = listar_movimentacoes_consolidadas()
+            df_consolidado = listar_movimentacoes_consolidadas(usuario_id)
 
             if df_consolidado.empty:
                 st.info(
@@ -38,7 +40,7 @@ def render_graficos():
             (
                 df_consolidado,
                 coluna_data,
-                coluna_tipo,
+                coluna_tipo
             ) = preparar_movimentacoes(df_consolidado)
 
         # Exibe somente a análise selecionada

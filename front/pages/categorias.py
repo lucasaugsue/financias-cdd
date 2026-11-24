@@ -3,8 +3,6 @@ import pandas as pd
 import streamlit as st
 
 from api.categorias import (
-    listar_categorias,
-    listar_regras_categorizacao,
     cadastrar_regra_categorizacao,
     editar_regra_categorizacao,
     excluir_regra_categorizacao,
@@ -18,11 +16,10 @@ from front.components.cache import (
 )
 
 
-
 @st.dialog("Nova categoria")
-def dialog_nova_categoria():
+def dialog_nova_categoria(usuario_id):
 
-    with st.form("form_nova_categoria"):
+    with st.form(f"form_nova_categoria_{usuario_id}"):
 
         nome = st.text_input(
             "Nome da categoria",
@@ -45,6 +42,7 @@ def dialog_nova_categoria():
             resultado = cadastrar_categoria(
                 nome,
                 finalidade,
+                usuario_id,
             )
 
             if resultado == "invalida":
@@ -60,7 +58,7 @@ def dialog_nova_categoria():
 
 
 @st.fragment
-def render_lista_categorias(categorias, regras):
+def render_lista_categorias(categorias, regras, usuario_id):
 
     st.subheader("Categorias e palavras-chave")
 
@@ -82,7 +80,9 @@ def render_lista_categorias(categorias, regras):
         ),
     )
 
-    # Paginação
+    # Paginação individual por usuário
+    chave_pagina = f"pagina_categorias_{usuario_id}"
+
     itens_por_pagina = 10
 
     total_paginas = max(
@@ -91,15 +91,15 @@ def render_lista_categorias(categorias, regras):
         // itens_por_pagina,
     )
 
-    if "pagina_categorias" not in st.session_state:
-        st.session_state.pagina_categorias = 0
+    if chave_pagina not in st.session_state:
+        st.session_state[chave_pagina] = 0
 
-    st.session_state.pagina_categorias = min(
-        st.session_state.pagina_categorias,
+    st.session_state[chave_pagina] = min(
+        st.session_state[chave_pagina],
         total_paginas - 1,
     )
 
-    inicio = st.session_state.pagina_categorias * itens_por_pagina
+    inicio = st.session_state[chave_pagina] * itens_por_pagina
     fim = inicio + itens_por_pagina
 
     categorias_pagina = categorias_ordenadas[inicio:fim]
@@ -110,7 +110,7 @@ def render_lista_categorias(categorias, regras):
 
         st.caption(f"Categoria: {nome_categoria}")
 
-        with st.form("form_modal_adicionar"):
+        with st.form(f"form_modal_adicionar_{usuario_id}"):
 
             nova_palavra = st.text_input("Palavra-chave")
 
@@ -126,6 +126,7 @@ def render_lista_categorias(categorias, regras):
                     sucesso = cadastrar_regra_categorizacao(
                         nova_palavra,
                         categoria_id,
+                        usuario_id,
                     )
 
                     if sucesso:
@@ -141,7 +142,7 @@ def render_lista_categorias(categorias, regras):
     @st.dialog("Editar palavra-chave")
     def dialog_editar(regra_id, palavra_atual):
 
-        with st.form("form_modal_editar"):
+        with st.form(f"form_modal_editar_{usuario_id}"):
 
             palavra_editada = st.text_input(
                 "Palavra-chave",
@@ -160,6 +161,7 @@ def render_lista_categorias(categorias, regras):
                     sucesso = editar_regra_categorizacao(
                         regra_id,
                         palavra_editada,
+                        usuario_id,
                     )
 
                     if sucesso:
@@ -189,7 +191,11 @@ def render_lista_categorias(categorias, regras):
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("Cancelar", width="stretch"):
+            if st.button(
+                "Cancelar",
+                width="stretch",
+                key=f"cancelar_exclusao_{usuario_id}",
+            ):
                 st.rerun()
 
         with col2:
@@ -197,8 +203,12 @@ def render_lista_categorias(categorias, regras):
                 "Confirmar exclusão",
                 type="primary",
                 width="stretch",
+                key=f"confirmar_exclusao_{usuario_id}",
             ):
-                sucesso = excluir_regra_categorizacao(regra_id)
+                sucesso = excluir_regra_categorizacao(
+                    regra_id,
+                    usuario_id,
+                )
 
                 if sucesso:
                     limpar_cache_categorias()
@@ -225,7 +235,9 @@ def render_lista_categorias(categorias, regras):
 
             st.caption(f"Finalidade: {finalidade}")
 
-            chave_tabela = f"tabela_palavras_{categoria_id}"
+            chave_tabela = (
+                f"tabela_palavras_{usuario_id}_{categoria_id}"
+            )
 
             df_palavras = pd.DataFrame([
                 {
@@ -264,7 +276,7 @@ def render_lista_categorias(categorias, regras):
             with col_adicionar:
                 if st.button(
                     "＋ Adicionar",
-                    key=f"adicionar_{categoria_id}",
+                    key=f"adicionar_{usuario_id}_{categoria_id}",
                     width="stretch",
                 ):
                     dialog_adicionar(categoria_id, nome)
@@ -272,7 +284,7 @@ def render_lista_categorias(categorias, regras):
             with col_editar:
                 if st.button(
                     "✏️ Editar",
-                    key=f"editar_{categoria_id}",
+                    key=f"editar_{usuario_id}_{categoria_id}",
                     disabled=regra_selecionada is None,
                     width="stretch",
                 ):
@@ -284,7 +296,7 @@ def render_lista_categorias(categorias, regras):
             with col_excluir:
                 if st.button(
                     "🗑️ Excluir",
-                    key=f"excluir_{categoria_id}",
+                    key=f"excluir_{usuario_id}_{categoria_id}",
                     disabled=regra_selecionada is None,
                     width="stretch",
                 ):
@@ -304,20 +316,18 @@ def render_lista_categorias(categorias, regras):
     with col_anterior:
         st.button(
             "← Anterior",
-            disabled=st.session_state.pagina_categorias == 0,
+            disabled=st.session_state[chave_pagina] == 0,
             width="stretch",
-            key="pagina_anterior_categorias",
-            on_click=lambda: setattr(
-                st.session_state,
-                "pagina_categorias",
-                st.session_state.pagina_categorias - 1,
-            ),
+            key=f"pagina_anterior_categorias_{usuario_id}",
+            on_click=lambda: st.session_state.update({
+                chave_pagina: st.session_state[chave_pagina] - 1
+            }),
         )
 
     with col_pagina:
         st.markdown(
             f"<center>Página "
-            f"{st.session_state.pagina_categorias + 1} "
+            f"{st.session_state[chave_pagina] + 1} "
             f"de {total_paginas}</center>",
             unsafe_allow_html=True,
         )
@@ -326,20 +336,19 @@ def render_lista_categorias(categorias, regras):
         st.button(
             "Próxima →",
             disabled=(
-                st.session_state.pagina_categorias >= total_paginas - 1
+                st.session_state[chave_pagina] >= total_paginas - 1
             ),
             width="stretch",
-            key="pagina_proxima_categorias",
-            on_click=lambda: setattr(
-                st.session_state,
-                "pagina_categorias",
-                st.session_state.pagina_categorias + 1,
-            ),
+            key=f"pagina_proxima_categorias_{usuario_id}",
+            on_click=lambda: st.session_state.update({
+                chave_pagina: st.session_state[chave_pagina] + 1
+            }),
         )
 
 
-
 def render_categorias():
+
+    usuario_id = st.session_state["usuario"]["id"]
 
     col_titulo, col_botao = st.columns([3, 1])
 
@@ -351,15 +360,19 @@ def render_categorias():
             "+ Nova categoria",
             type="primary",
             width="stretch",
-            key="botao_nova_categoria",
+            key=f"botao_nova_categoria_{usuario_id}",
         ):
-            dialog_nova_categoria()
+            dialog_nova_categoria(usuario_id)
 
     try:
-        categorias = carregar_categorias()
-        regras = carregar_regras()
+        categorias = carregar_categorias(usuario_id)
+        regras = carregar_regras(usuario_id)
 
-        render_lista_categorias(categorias, regras)
+        render_lista_categorias(
+            categorias,
+            regras,
+            usuario_id,
+        )
 
     except Exception as erro:
         st.error(f"Erro ao carregar categorias: {erro}")

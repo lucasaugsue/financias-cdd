@@ -5,79 +5,100 @@ from api.categorias import (
     listar_regras_categorizacao,
 )
 
-categorias = listar_categorias()
 
-regras_novas = {
-    "Alimentação": [
-        "PANIF",
-        "ROYAL BURGER",
-        "IFOOD",
-        "KONI",
-        "PIZZA CESAR",
-    ],
-    "Supermercado": [
-        "CARREFOUR",
-    ],
-    "Saúde": [
-        "FARMACIA",
-        "DROGARIA",
-    ],
-    "Transporte": [
-        "BRB MOBILIDADE",
-        "BANCO VOLKSWAGEN",
-    ],
-    "Compras": [
-        "MARKETPLACE",
-    ],
-    "Igreja": [
-        "IGREJA",
-    ],
-    "Compras": [
-        "PAGSEGURO",
-        "PAY2ALL",
-        "GIFT CARDS",
-    ],
-    "Saúde": [
-        "OTORRINOLARI",
-    ],
-    "Alimentação": [
-        "BURGUE",
-        "LIFEBOX",
-    ],
-    "Panificadora": [
-        "PAES",
-        "BALTAZARJOSE",
-    ],
-    "Supermercado": [
-        "DONA",
-    ],
-    "Celular": [
-        "MULTIDISPLAY COMERCIO",
-    ],
-    "Devoluções": [
-        "ENVIO DEVOLVIDO",
-    ],
-}
+def executar():
 
-for categoria_nome, palavras in regras_novas.items():
-    categoria = next(
-        (
-            item for item in categorias
-            if item["categoria"] == categoria_nome
-        ),
-        None,
-    )
+    # Identifica o usuário que receberá as regras
+    try:
+        usuario_id = int(input("Informe o ID do usuário: "))
+    except ValueError:
+        print("ID inválido.")
+        return
 
-    if categoria:
+    if usuario_id <= 0:
+        print("O ID deve ser maior que zero.")
+        return
+
+    categorias = listar_categorias(usuario_id)
+
+    regras_novas = [
+        ("Alimentação", [
+            "PANIF",
+            "ROYAL BURGER",
+            "IFOOD",
+            "KONI",
+            "PIZZA CESAR",
+            "BURGUE",
+            "LIFEBOX",
+        ]),
+        ("Supermercado", [
+            "CARREFOUR",
+            "DONA",
+        ]),
+        ("Saúde", [
+            "FARMACIA",
+            "DROGARIA",
+            "OTORRINOLARI",
+        ]),
+        ("Transporte", [
+            "BRB MOBILIDADE",
+            "BANCO VOLKSWAGEN",
+        ]),
+        ("Compras", [
+            "MARKETPLACE",
+            "PAGSEGURO",
+            "PAY2ALL",
+            "GIFT CARDS",
+        ]),
+        ("Igreja", [
+            "IGREJA",
+        ]),
+        ("Panificadora", [
+            "PAES",
+            "BALTAZARJOSE",
+        ]),
+        ("Celular", [
+            "MULTIDISPLAY COMERCIO",
+        ]),
+        ("Devoluções", [
+            "ENVIO DEVOLVIDO",
+        ]),
+    ]
+
+    # Cadastra as regras
+    for categoria_nome, palavras in regras_novas:
+
+        categoria = next(
+            (
+                item for item in categorias
+                if item["categoria"] == categoria_nome
+            ),
+            None,
+        )
+
+        if not categoria:
+            print(f"Categoria não encontrada: {categoria_nome}")
+            continue
+
         for palavra in palavras:
+
             resultado = cadastrar_regra_categorizacao(
                 palavra,
                 categoria["id"],
+                usuario_id,
             )
 
             if resultado:
                 print(f"Cadastrada: {palavra} -> {categoria_nome}")
+            else:
+                print(f"Não cadastrada (já existe?): {palavra}")
 
-print("\nRegras cadastradas:")
-for regra in listar_regras_categorizacao():
-    print(f"{regra['palavra_chave']} -> {regra['categoria']}")
+    # Exibe as regras do usuário
+    print("\nRegras cadastradas:")
+
+    for regra in listar_regras_categorizacao(usuario_id):
+        print(f"{regra['palavra_chave']} -> {regra['categoria']}")
+
+
+if __name__ == "__main__":
+    executar()

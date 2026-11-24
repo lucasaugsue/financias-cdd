@@ -16,6 +16,8 @@ from front.components.importar_extrato import (
 
 def render_extratos_salvos():
 
+    usuario_id = st.session_state["usuario"]["id"]
+
     col_titulo, col_botao = st.columns([3, 1])
 
     with col_titulo:
@@ -31,7 +33,7 @@ def render_extratos_salvos():
             dialog_importar_extrato()
 
     try:
-        extratos = listar_extratos()
+        extratos = listar_extratos(usuario_id)
 
         if not extratos:
             st.info(
@@ -73,7 +75,8 @@ def render_extratos_salvos():
         extrato_id = opcoes[selecionado]
 
         df_movimentacoes = buscar_movimentacoes(
-            extrato_id
+            extrato_id,
+            usuario_id,
         )
 
         st.write(
@@ -85,7 +88,7 @@ def render_extratos_salvos():
             width="stretch",
             hide_index=True,
             num_rows="dynamic",
-            key=f"editor_{extrato_id}",
+            key=f"editor_{usuario_id}_{extrato_id}",
         )
 
         col1, col2 = st.columns(2)
@@ -101,6 +104,7 @@ def render_extratos_salvos():
                     atualizar_extrato(
                         extrato_id,
                         df_editado,
+                        usuario_id,
                     )
 
                     st.success(
@@ -118,7 +122,7 @@ def render_extratos_salvos():
 
             confirmar = st.checkbox(
                 "Confirmo que desejo excluir este extrato",
-                key=f"confirmar_exclusao_{extrato_id}",
+                key=f"confirmar_exclusao_{usuario_id}_{extrato_id}",
             )
 
             if st.button(
@@ -128,7 +132,10 @@ def render_extratos_salvos():
             ):
 
                 try:
-                    excluir_extrato(extrato_id)
+                    excluir_extrato(
+                        extrato_id,
+                        usuario_id,
+                    )
 
                     st.success(
                         "Extrato excluído com sucesso!"

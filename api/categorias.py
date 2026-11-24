@@ -1,9 +1,11 @@
+
 from sqlalchemy import text
 
 from api.connection import engine
 
-def criar_categorias_padrao():
-    """Cadastra as categorias iniciais, caso ainda não existam."""
+
+def criar_categorias_padrao(usuario_id):
+    """Cria as categorias iniciais para um usuário."""
 
     categorias = [
         {"categoria": "Salário", "finalidade": "Receita"},
@@ -31,29 +33,50 @@ def criar_categorias_padrao():
     with engine.begin() as connection:
         connection.execute(
             text("""
-                INSERT INTO categorias (categoria, finalidade)
-                VALUES (:categoria, :finalidade)
-                ON CONFLICT (categoria) DO NOTHING;
+                INSERT INTO categorias (
+                    usuario_id,
+                    categoria,
+                    finalidade
+                )
+                VALUES (
+                    :usuario_id,
+                    :categoria,
+                    :finalidade
+                )
+                ON CONFLICT DO NOTHING;
             """),
-            categorias
+            [
+                {
+                    "usuario_id": usuario_id,
+                    **categoria
+                }
+                for categoria in categorias
+            ]
         )
 
 
-def listar_categorias():
-    """Retorna todas as categorias cadastradas."""
+def listar_categorias(usuario_id):
+    """Retorna somente as categorias do usuário."""
 
     with engine.connect() as connection:
-        resultado = connection.execute(text("""
-            SELECT id, categoria, finalidade
-            FROM categorias
-            ORDER BY categoria;
-        """))
+        resultado = connection.execute(
+            text("""
+                SELECT id, categoria, finalidade
+                FROM categorias
+                WHERE usuario_id = :usuario_id
+                ORDER BY categoria;
+            """),
+            {"usuario_id": usuario_id}
+        )
 
-        return [dict(linha) for linha in resultado.mappings().all()]
+        return [
+            dict(linha)
+            for linha in resultado.mappings().all()
+        ]
 
 
-def cadastrar_categoria(categoria, finalidade):
-    """Cadastra uma nova categoria."""
+def cadastrar_categoria(categoria, finalidade, usuario_id):
+    """Cadastra uma nova categoria para o usuário."""
 
     categoria = categoria.strip()
 
@@ -69,9 +92,14 @@ def cadastrar_categoria(categoria, finalidade):
             text("""
                 SELECT id
                 FROM categorias
-                WHERE LOWER(TRIM(categoria)) = LOWER(TRIM(:categoria));
+                WHERE LOWER(TRIM(categoria)) =
+                    LOWER(TRIM(:categoria))
+                AND usuario_id = :usuario_id;
             """),
-            {"categoria": categoria}
+            {
+                "categoria": categoria,
+                "usuario_id": usuario_id
+            }
         ).first()
 
         if existente:
@@ -79,10 +107,19 @@ def cadastrar_categoria(categoria, finalidade):
 
         connection.execute(
             text("""
-                INSERT INTO categorias (categoria, finalidade)
-                VALUES (:categoria, :finalidade);
+                INSERT INTO categorias (
+                    usuario_id,
+                    categoria,
+                    finalidade
+                )
+                VALUES (
+                    :usuario_id,
+                    :categoria,
+                    :finalidade
+                );
             """),
             {
+                "usuario_id": usuario_id,
                 "categoria": categoria,
                 "finalidade": finalidade,
             }
@@ -91,8 +128,12 @@ def cadastrar_categoria(categoria, finalidade):
     return "criada"
 
 
-def cadastrar_regra_categorizacao(palavra_chave, categoria_id):
-    """Cadastra uma palavra-chave associada a uma categoria."""
+def cadastrar_regra_categorizacao(
+    palavra_chave,
+    categoria_id,
+    usuario_id
+):
+    """Cadastra uma regra em uma categoria do próprio usuário."""
 
     palavra_chave = palavra_chave.strip().upper()
 
@@ -100,19 +141,39 @@ def cadastrar_regra_categorizacao(palavra_chave, categoria_id):
         return False
 
     with engine.begin() as connection:
+
+        categoria = connection.execute(
+            text("""
+                SELECT id
+                FROM categorias
+                WHERE id = :categoria_id
+                  AND usuario_id = :usuario_id;
+            """),
+            {
+                "categoria_id": categoria_id,
+                "usuario_id": usuario_id
+            }
+        ).first()
+
+        if not categoria:
+            return False
+
         resultado = connection.execute(
             text("""
                 INSERT INTO regras_categorizacao (
+                    usuario_id,
                     palavra_chave,
                     categoria_id
                 )
                 VALUES (
+                    :usuario_id,
                     :palavra_chave,
                     :categoria_id
                 )
                 ON CONFLICT DO NOTHING;
             """),
             {
+                "usuario_id": usuario_id,
                 "palavra_chave": palavra_chave,
                 "categoria_id": categoria_id,
             }
@@ -121,8 +182,12 @@ def cadastrar_regra_categorizacao(palavra_chave, categoria_id):
         return resultado.rowcount > 0
 
 
-def verificar_regra_categorizacao(palavra_chave, categoria_id):
-    """Verifica se uma palavra-chave já está cadastrada."""
+def verificar_regra_categorizacao(
+    palavra_chave,
+    categoria_id,
+    usuario_id
+):
+    """Verifica regras existentes somente na conta do usuário."""
 
     palavra_chave = palavra_chave.strip().upper()
 
@@ -130,6 +195,23 @@ def verificar_regra_categorizacao(palavra_chave, categoria_id):
         return {"status": "invalida"}
 
     with engine.connect() as connection:
+
+        categoria = connection.execute(
+            text("""
+                SELECT id
+                FROM categorias
+                WHERE id = :categoria_id
+                  AND usuario_id = :usuario_id;
+            """),
+            {
+                "categoria_id": categoria_id,
+                "usuario_id": usuario_id
+            }
+        ).first()
+
+        if not categoria:
+            return {"status": "invalida"}
+
         resultado = connection.execute(
             text("""
                 SELECT
@@ -140,14 +222,17 @@ def verificar_regra_categorizacao(palavra_chave, categoria_id):
                     ON c.id = r.categoria_id
                 WHERE LOWER(TRIM(r.palavra_chave)) =
                     LOWER(TRIM(:palavra_chave))
-                AND r.ativo = TRUE;
+                  AND r.usuario_id = :usuario_id
+                  AND r.ativo = TRUE;
             """),
-            {"palavra_chave": palavra_chave}
+            {
+                "palavra_chave": palavra_chave,
+                "usuario_id": usuario_id
+            }
         )
 
         registros = resultado.mappings().all()
 
-    # Verificar se existe em outra categoria
     conflitos = [
         registro["categoria"]
         for registro in registros
@@ -160,15 +245,18 @@ def verificar_regra_categorizacao(palavra_chave, categoria_id):
             "categorias": conflitos,
         }
 
-    # Verificar se já existe na mesma categoria
     if registros:
         return {"status": "existente"}
 
     return {"status": "nova"}
 
 
-def editar_regra_categorizacao(regra_id, nova_palavra_chave):
-    """Altera uma palavra-chave sem permitir duplicidade na categoria."""
+def editar_regra_categorizacao(
+    regra_id,
+    nova_palavra_chave,
+    usuario_id
+):
+    """Edita uma regra pertencente ao usuário."""
 
     nova_palavra_chave = nova_palavra_chave.strip().upper()
 
@@ -181,27 +269,32 @@ def editar_regra_categorizacao(regra_id, nova_palavra_chave):
                 UPDATE regras_categorizacao
                 SET palavra_chave = :palavra_chave
                 WHERE id = :regra_id
-                AND ativo = TRUE
-                AND NOT EXISTS (
-                    SELECT 1
-                    FROM regras_categorizacao outra
-                    WHERE outra.id <> :regra_id
-                    AND outra.categoria_id = regras_categorizacao.categoria_id
-                    AND LOWER(TRIM(outra.palavra_chave)) =
-                        LOWER(TRIM(:palavra_chave))
-                );
+                  AND usuario_id = :usuario_id
+                  AND ativo = TRUE
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM regras_categorizacao outra
+                      WHERE outra.id <> :regra_id
+                        AND outra.usuario_id = :usuario_id
+                        AND outra.categoria_id =
+                            regras_categorizacao.categoria_id
+                        AND outra.ativo = TRUE
+                        AND LOWER(TRIM(outra.palavra_chave)) =
+                            LOWER(TRIM(:palavra_chave))
+                  );
             """),
             {
                 "regra_id": regra_id,
                 "palavra_chave": nova_palavra_chave,
+                "usuario_id": usuario_id,
             }
         )
 
         return resultado.rowcount > 0
 
 
-def excluir_regra_categorizacao(regra_id):
-    """Desativa uma palavra-chave para que não seja mais utilizada."""
+def excluir_regra_categorizacao(regra_id, usuario_id):
+    """Desativa uma regra pertencente ao usuário."""
 
     with engine.begin() as connection:
         resultado = connection.execute(
@@ -209,32 +302,41 @@ def excluir_regra_categorizacao(regra_id):
                 UPDATE regras_categorizacao
                 SET ativo = FALSE
                 WHERE id = :regra_id
-                AND ativo = TRUE;
+                  AND usuario_id = :usuario_id
+                  AND ativo = TRUE;
             """),
-            {"regra_id": regra_id}
+            {
+                "regra_id": regra_id,
+                "usuario_id": usuario_id
+            }
         )
 
         return resultado.rowcount > 0
 
 
-def listar_regras_categorizacao():
-    """Retorna todas as regras de categorização ativas."""
+def listar_regras_categorizacao(usuario_id):
+    """Retorna somente as regras ativas do usuário."""
 
     with engine.connect() as connection:
-        resultado = connection.execute(text("""
-            SELECT
-                r.id,
-                r.palavra_chave,
-                r.categoria_id,
-                r.criado_em,
-                c.categoria,
-                c.finalidade
-            FROM regras_categorizacao r
-            INNER JOIN categorias c
-                ON c.id = r.categoria_id
-            WHERE r.ativo = TRUE
-            ORDER BY r.id;
-        """))
+        resultado = connection.execute(
+            text("""
+                SELECT
+                    r.id,
+                    r.palavra_chave,
+                    r.categoria_id,
+                    r.criado_em,
+                    c.categoria,
+                    c.finalidade
+                FROM regras_categorizacao r
+                INNER JOIN categorias c
+                    ON c.id = r.categoria_id
+                WHERE r.ativo = TRUE
+                  AND r.usuario_id = :usuario_id
+                  AND c.usuario_id = :usuario_id
+                ORDER BY r.id;
+            """),
+            {"usuario_id": usuario_id}
+        )
 
         return [
             dict(linha)

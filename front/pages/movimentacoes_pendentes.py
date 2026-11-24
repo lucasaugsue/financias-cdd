@@ -9,8 +9,6 @@ from api.categorias import (
 )
 
 from api.extratos import (
-    listar_movimentacoes_pendentes,
-    contar_movimentacoes_categorizadas,
     atualizar_categoria_manual,
 )
 
@@ -97,9 +95,9 @@ def preparar_tabela_movimentacoes(movimentacoes):
 
 
 @st.dialog("Criar nova categoria")
-def dialog_nova_categoria():
+def dialog_nova_categoria(usuario_id):
 
-    with st.form("form_nova_categoria"):
+    with st.form(f"form_nova_categoria_{usuario_id}"):
 
         nome = st.text_input(
             "Nome da categoria",
@@ -122,6 +120,7 @@ def dialog_nova_categoria():
             resultado = cadastrar_categoria(
                 nome,
                 finalidade,
+                usuario_id,
             )
 
             if resultado == "invalida":
@@ -133,15 +132,16 @@ def dialog_nova_categoria():
             else:
                 limpar_cache_categorias()
 
-                st.session_state["categoria_movimentacao_pendente"] = nome.strip()
+                st.session_state[
+                    f"categoria_movimentacao_pendente_{usuario_id}"
+                ] = nome.strip()
 
                 st.success("Categoria criada com sucesso!")
 
                 st.rerun()
 
 
-
-def render_painel_classificacao(linha, categorias):
+def render_painel_classificacao(linha, categorias, usuario_id):
 
     st.subheader("Classificar movimentação")
 
@@ -213,9 +213,9 @@ def render_painel_classificacao(linha, categorias):
 
         if st.button(
             "+ Nova categoria",
-            key="nova_categoria_pendente",
+            key=f"nova_categoria_pendente_{usuario_id}",
         ):
-            dialog_nova_categoria()
+            dialog_nova_categoria(usuario_id)
 
         opcoes_categorias = {
             categoria["categoria"]: categoria["id"]
@@ -225,14 +225,19 @@ def render_painel_classificacao(linha, categorias):
         categoria_escolhida = st.selectbox(
             "Selecione uma categoria",
             options=list(opcoes_categorias.keys()),
-            key="categoria_movimentacao_pendente",
+            key=f"categoria_movimentacao_pendente_{usuario_id}",
         )
 
         categoria_id = opcoes_categorias[categoria_escolhida]
 
         cadastrar_palavra = st.checkbox(
             "Cadastrar palavra-chave para futuras movimentações",
-            key="cadastrar_palavra_movimentacao",
+            key=f"cadastrar_palavra_movimentacao_{usuario_id}",
+        )
+
+        movimentacao_id = obter_campo(
+            linha,
+            ["movimentacao_id", "id"],
         )
 
         palavra_chave = ""
@@ -242,14 +247,14 @@ def render_painel_classificacao(linha, categorias):
             palavra_chave = st.text_input(
                 "Palavra-chave",
                 placeholder="Ex.: MERCADO, UBER, FARMACIA...",
-                key=f"palavra_chave_movimentacao_{obter_campo(linha, ['movimentacao_id', 'id'])}",
+                key=f"palavra_chave_movimentacao_{usuario_id}_{movimentacao_id}",
             )
 
         if st.button(
             "Salvar classificação",
             type="primary",
             width="stretch",
-            key="salvar_classificacao_movimentacao",
+            key=f"salvar_classificacao_movimentacao_{usuario_id}",
         ):
 
             if cadastrar_palavra:
@@ -257,6 +262,7 @@ def render_painel_classificacao(linha, categorias):
                 resultado = verificar_regra_categorizacao(
                     palavra_chave,
                     categoria_id,
+                    usuario_id,
                 )
 
                 if resultado == "invalida":
@@ -277,14 +283,10 @@ def render_painel_classificacao(linha, categorias):
                     )
                     return
 
-            movimentacao_id = obter_campo(
-                linha,
-                ["movimentacao_id", "id"],
-            )
-
             sucesso = atualizar_categoria_manual(
                 movimentacao_id,
                 categoria_id,
+                usuario_id,
             )
 
             if not sucesso:
@@ -296,6 +298,7 @@ def render_painel_classificacao(linha, categorias):
                 cadastrar_regra_categorizacao(
                     palavra_chave,
                     categoria_id,
+                    usuario_id,
                 )
 
             limpar_cache_categorias()
@@ -310,6 +313,7 @@ def _render_tabela_movimentacoes_pendentes(
     categorias,
     movimentacoes,
     df_movimentacoes,
+    usuario_id,
 ):
 
     if movimentacoes.empty:
@@ -332,7 +336,7 @@ def _render_tabela_movimentacoes_pendentes(
         height=300,
         on_select="rerun",
         selection_mode="single-row",
-        key="tabela_movimentacoes_pendentes",
+        key=f"tabela_movimentacoes_pendentes_{usuario_id}",
     )
 
     linhas_selecionadas = evento.selection.rows
@@ -348,6 +352,7 @@ def _render_tabela_movimentacoes_pendentes(
             render_painel_classificacao(
                 linha,
                 categorias,
+                usuario_id,
             )
 
         else:
@@ -364,6 +369,8 @@ def _render_tabela_movimentacoes_pendentes(
 
 def render_movimentacoes_pendentes():
 
+    usuario_id = st.session_state["usuario"]["id"]
+
     st.subheader("Movimentações pendentes")
 
     st.caption(
@@ -373,11 +380,11 @@ def render_movimentacoes_pendentes():
 
     try:
 
-        categorias = carregar_categorias()
+        categorias = carregar_categorias(usuario_id)
 
-        movimentacoes = carregar_movimentacoes_pendentes()
+        movimentacoes = carregar_movimentacoes_pendentes(usuario_id)
 
-        indicadores = carregar_indicadores()
+        indicadores = carregar_indicadores(usuario_id)
 
         total_categorizadas = indicadores["categorizadas"]
         total_pendentes = indicadores["pendentes"]
@@ -413,6 +420,7 @@ def render_movimentacoes_pendentes():
             categorias,
             movimentacoes,
             df_movimentacoes,
+            usuario_id,
         )
 
     except Exception as erro:

@@ -10,13 +10,13 @@ from services.movimentacoes import (
 OPCAO_SEM_CATEGORIA = "__SEM_CATEGORIA__"
 
 
-def limpar_filtros():
+def limpar_filtros(usuario_id):
     """Restaura os filtros para os valores iniciais."""
 
-    st.session_state["filtro_banco"] = "Todos"
-    st.session_state["filtro_tipo"] = "Todos"
-    st.session_state["filtro_periodos"] = []
-    st.session_state["filtro_categoria"] = "Todos"
+    st.session_state[f"filtro_banco_{usuario_id}"] = "Todos"
+    st.session_state[f"filtro_tipo_{usuario_id}"] = "Todos"
+    st.session_state[f"filtro_periodos_{usuario_id}"] = []
+    st.session_state[f"filtro_categoria_{usuario_id}"] = "Todos"
 
 
 def formatar_periodo(periodo):
@@ -34,6 +34,8 @@ def formatar_periodo(periodo):
 
 
 def render_filtros(df, coluna_data, coluna_tipo):
+
+    usuario_id = st.session_state["usuario"]["id"]
 
     # Identifica as opções disponíveis
     bancos = sorted(
@@ -59,35 +61,41 @@ def render_filtros(df, coluna_data, coluna_tipo):
         coluna_data
     )
 
+    # Identificadores individuais por usuário
+    chave_banco = f"filtro_banco_{usuario_id}"
+    chave_tipo = f"filtro_tipo_{usuario_id}"
+    chave_periodos = f"filtro_periodos_{usuario_id}"
+    chave_categoria = f"filtro_categoria_{usuario_id}"
+
     # Inicializa os estados
-    if "filtro_banco" not in st.session_state:
-        st.session_state["filtro_banco"] = "Todos"
+    if chave_banco not in st.session_state:
+        st.session_state[chave_banco] = "Todos"
 
-    if "filtro_tipo" not in st.session_state:
-        st.session_state["filtro_tipo"] = "Todos"
+    if chave_tipo not in st.session_state:
+        st.session_state[chave_tipo] = "Todos"
 
-    if "filtro_periodos" not in st.session_state:
-        st.session_state["filtro_periodos"] = periodos
+    if chave_periodos not in st.session_state:
+        st.session_state[chave_periodos] = periodos
 
-    if "filtro_categoria" not in st.session_state:
-        st.session_state["filtro_categoria"] = "Todos"
+    if chave_categoria not in st.session_state:
+        st.session_state[chave_categoria] = "Todos"
 
     # Corrige seleções que não existem mais nas opções
-    if st.session_state["filtro_banco"] not in ["Todos"] + bancos:
-        st.session_state["filtro_banco"] = "Todos"
+    if st.session_state[chave_banco] not in ["Todos"] + bancos:
+        st.session_state[chave_banco] = "Todos"
 
-    if st.session_state["filtro_tipo"] not in ["Todos"] + tipos:
-        st.session_state["filtro_tipo"] = "Todos"
+    if st.session_state[chave_tipo] not in ["Todos"] + tipos:
+        st.session_state[chave_tipo] = "Todos"
 
     opcoes_categoria = (
         ["Todos", OPCAO_SEM_CATEGORIA] + categorias
     )
 
-    if st.session_state["filtro_categoria"] not in opcoes_categoria:
-        st.session_state["filtro_categoria"] = "Todos"
+    if st.session_state[chave_categoria] not in opcoes_categoria:
+        st.session_state[chave_categoria] = "Todos"
 
-    if not set(st.session_state["filtro_periodos"]).issubset(set(periodos)):
-        st.session_state["filtro_periodos"] = periodos
+    if not set(st.session_state[chave_periodos]).issubset(set(periodos)):
+        st.session_state[chave_periodos] = periodos
 
     # Layout dos filtros
     col1, col2, col3, col4 = st.columns(4)
@@ -97,21 +105,21 @@ def render_filtros(df, coluna_data, coluna_tipo):
             "Mês/Ano",
             options=periodos,
             format_func=formatar_periodo,
-            key="filtro_periodos"
+            key=chave_periodos
         )
 
     with col2:
         banco = st.selectbox(
             "Banco de origem",
             options=["Todos"] + bancos,
-            key="filtro_banco"
+            key=chave_banco
         )
 
     with col3:
         tipo = st.selectbox(
             "Tipo de lançamento",
             options=["Todos"] + tipos,
-            key="filtro_tipo"
+            key=chave_tipo
         )
 
     with col4:
@@ -123,13 +131,15 @@ def render_filtros(df, coluna_data, coluna_tipo):
                 if opcao == OPCAO_SEM_CATEGORIA
                 else opcao
             ),
-            key="filtro_categoria"
+            key=chave_categoria
         )
 
     # Botão para limpar os filtros
     st.button(
         "🧹 Limpar filtros",
-        on_click=limpar_filtros
+        on_click=limpar_filtros,
+        args=(usuario_id,),
+        key=f"limpar_filtros_{usuario_id}"
     )
 
     # Aplica os filtros existentes
