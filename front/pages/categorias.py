@@ -2,6 +2,8 @@
 import pandas as pd
 import streamlit as st
 
+from api.regras_padrao import listar_regras_padrao
+
 from api.categorias import (
     cadastrar_regra_categorizacao,
     editar_regra_categorizacao,
@@ -58,7 +60,12 @@ def dialog_nova_categoria(usuario_id):
 
 
 @st.fragment
-def render_lista_categorias(categorias, regras, usuario_id):
+def render_lista_categorias(
+    categorias,
+    regras,
+    regras_padrao,
+    usuario_id,
+):
 
     st.subheader("Categorias e palavras-chave")
 
@@ -224,16 +231,64 @@ def render_lista_categorias(categorias, regras, usuario_id):
         nome = categoria["categoria"]
         finalidade = categoria["finalidade"]
 
-        palavras = [
+        # Separar regras personalizadas e padrão
+        palavras_usuario = [
             regra for regra in regras
             if regra["categoria_id"] == categoria_id
         ]
 
+        palavras_padrao = [
+            regra for regra in regras_padrao
+            if regra["categoria"].casefold() == nome.casefold()
+        ]
+
+        total_palavras = len(palavras_usuario) + len(palavras_padrao)
+
         with st.expander(
-            f"{nome} ({len(palavras)} palavras-chave)"
+            f"{nome} ({total_palavras} palavras-chave)"
         ):
 
             st.caption(f"Finalidade: {finalidade}")
+
+            # Palavras padrão do sistema
+            st.markdown("#### 🔒 Palavras-chave padrão")
+
+            st.caption(
+                "Compartilhadas por todos os usuários. "
+                "Não podem ser editadas ou excluídas."
+            )
+
+            if palavras_padrao:
+
+                df_padrao = pd.DataFrame([
+                    {
+                        "Palavra-chave": regra["palavra_chave"],
+                        "Origem": "Padrão do sistema",
+                    }
+                    for regra in palavras_padrao
+                ])
+
+                st.dataframe(
+                    df_padrao,
+                    hide_index=True,
+                    width="stretch",
+                    height=min(220, 40 * len(df_padrao) + 38),
+                )
+
+            else:
+                st.caption(
+                    "Nenhuma palavra-chave padrão nesta categoria."
+                )
+
+            st.divider()
+
+            # Palavras personalizadas do usuário
+            st.markdown("#### ✏️ Minhas palavras-chave")
+
+            st.caption(
+                "Palavras criadas por você. "
+                "Podem ser editadas ou excluídas."
+            )
 
             chave_tabela = (
                 f"tabela_palavras_{usuario_id}_{categoria_id}"
@@ -247,10 +302,11 @@ def render_lista_categorias(categorias, regras, usuario_id):
                         regra["criado_em"]
                     ).strftime("%d/%m/%Y"),
                 }
-                for regra in palavras
+                for regra in palavras_usuario
             ])
 
-            if palavras:
+            if palavras_usuario:
+
                 evento = st.dataframe(
                     df_palavras,
                     hide_index=True,
@@ -264,16 +320,23 @@ def render_lista_categorias(categorias, regras, usuario_id):
                 linhas_selecionadas = evento.selection.rows
 
                 regra_selecionada = (
-                    palavras[linhas_selecionadas[0]]
+                    palavras_usuario[linhas_selecionadas[0]]
                     if linhas_selecionadas
                     else None
                 )
+
             else:
                 regra_selecionada = None
+
+                st.info(
+                    "Você ainda não cadastrou palavras "
+                    "personalizadas nesta categoria."
+                )
 
             col_adicionar, col_editar, col_excluir = st.columns(3)
 
             with col_adicionar:
+
                 if st.button(
                     "＋ Adicionar",
                     key=f"adicionar_{usuario_id}_{categoria_id}",
@@ -282,6 +345,7 @@ def render_lista_categorias(categorias, regras, usuario_id):
                     dialog_adicionar(categoria_id, nome)
 
             with col_editar:
+
                 if st.button(
                     "✏️ Editar",
                     key=f"editar_{usuario_id}_{categoria_id}",
@@ -294,6 +358,7 @@ def render_lista_categorias(categorias, regras, usuario_id):
                     )
 
             with col_excluir:
+
                 if st.button(
                     "🗑️ Excluir",
                     key=f"excluir_{usuario_id}_{categoria_id}",
@@ -304,9 +369,6 @@ def render_lista_categorias(categorias, regras, usuario_id):
                         regra_selecionada["id"],
                         regra_selecionada["palavra_chave"],
                     )
-
-            if not palavras:
-                st.info("Nenhuma palavra-chave cadastrada.")
 
     # Paginação
     st.divider()
@@ -367,10 +429,12 @@ def render_categorias():
     try:
         categorias = carregar_categorias(usuario_id)
         regras = carregar_regras(usuario_id)
+        regras_padrao = listar_regras_padrao()
 
         render_lista_categorias(
             categorias,
             regras,
+            regras_padrao,
             usuario_id,
         )
 

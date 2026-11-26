@@ -1,5 +1,5 @@
-
 import streamlit as st
+import pandas as pd
 
 from front.components.filtros import render_filtros
 from front.components.indicadores import render_indicadores
@@ -19,7 +19,19 @@ from services.movimentacoes import (
 )
 
 
-@st.dialog("Detalhes da movimentação", dismissible=False)
+def limpar_selecao_movimentacoes():
+    st.session_state.pop("movimentacao_selecionada_id", None)
+
+    st.session_state["versao_tabela_movimentacoes"] = (
+        st.session_state.get("versao_tabela_movimentacoes", 0) + 1
+    )
+
+
+@st.dialog(
+    "Detalhes da movimentação",
+    dismissible=True,
+    on_dismiss=limpar_selecao_movimentacoes,
+)
 def dialog_movimentacao(linha, usuario_id):
 
     categorias = listar_categorias(usuario_id)
@@ -56,13 +68,23 @@ def dialog_movimentacao(linha, usuario_id):
 
     categoria_atual = linha.get("categoria_id")
 
+    # Tratar categoria vazia, inválida ou inexistente
+    categoria_atual_id = None
+
+    if categoria_atual is not None and pd.notna(categoria_atual):
+
+        try:
+            categoria_convertida = int(categoria_atual)
+
+            if categoria_convertida in nomes_categorias:
+                categoria_atual_id = categoria_convertida
+
+        except (ValueError, TypeError):
+            categoria_atual_id = None
+
     opcoes = [None] + list(nomes_categorias.keys())
 
-    indice_atual = (
-        opcoes.index(int(categoria_atual))
-        if categoria_atual is not None
-        else 0
-    )
+    indice_atual = opcoes.index(categoria_atual_id)
 
     nova_categoria = st.selectbox(
         "Selecione a categoria",
@@ -79,7 +101,11 @@ def dialog_movimentacao(linha, usuario_id):
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("Fechar", use_container_width=True):
+        if st.button(
+            "Fechar",
+            use_container_width=True,
+        ):
+            limpar_selecao_movimentacoes()
             st.rerun()
 
     with col2:
@@ -96,7 +122,7 @@ def dialog_movimentacao(linha, usuario_id):
             )
 
             if sucesso:
-                st.session_state["limpar_selecao_movimentacoes"] = True
+                limpar_selecao_movimentacoes()
                 st.success("Categoria atualizada com sucesso!")
                 st.rerun()
 

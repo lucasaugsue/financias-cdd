@@ -4,10 +4,11 @@ import streamlit as st
 from api.autenticacao import (
     autenticar_usuario,
     cadastrar_usuario,
+    gerar_token_sessao,
 )
 
 
-def render_login():
+def render_login(cookie_manager):
 
     st.title("💰 Financias CDD")
     st.caption("Seu gerenciador financeiro pessoal")
@@ -35,7 +36,11 @@ def render_login():
 
                 if usuario:
                     st.session_state["usuario"] = usuario
+                    st.session_state["token_sessao"] = gerar_token_sessao(
+                        usuario["id"]
+                    )
                     st.rerun()
+
                 else:
                     st.error("E-mail ou senha inválidos.")
 
@@ -76,14 +81,18 @@ def render_login():
                     )
 
                     if sucesso:
-                        st.success("Conta criada com sucesso!")
-
-                        st.session_state["usuario"] = {
+                        usuario = {
                             "id": resultado,
                             "nome": nome.strip(),
                             "email": email.strip().lower(),
                         }
 
+                        st.session_state["usuario"] = usuario
+                        st.session_state["token_sessao"] = gerar_token_sessao(
+                            usuario["id"]
+                        )
+
+                        st.success("Conta criada com sucesso!")
                         st.rerun()
 
                     else:

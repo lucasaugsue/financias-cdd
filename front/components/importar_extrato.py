@@ -2,11 +2,14 @@
 import streamlit as st
 
 from api.extratos import salvar_extrato
+
 from services.arquivos import (
     ler_arquivo,
     calcular_hash_arquivo,
     limpar_extrato_banco_brasil,
 )
+
+from services.movimentacoes import padronizar_movimentacoes
 
 
 @st.dialog("Importar novo extrato", width="large")
@@ -65,11 +68,14 @@ def dialog_importar_extrato():
             banco_origem,
         )
 
+        # 4. Padronização das movimentações
+        df = padronizar_movimentacoes(df)
+
         st.success(
             f"Arquivo carregado: {arquivo.name}"
         )
 
-        # 4. Resumo da importação
+        # 5. Resumo da importação
         col1, col2, col3 = st.columns(3)
 
         col1.metric(
@@ -93,7 +99,7 @@ def dialog_importar_extrato():
                 "pelas regras de limpeza do Banco do Brasil."
             )
 
-        # 5. Prévia dos dados tratados
+        # 6. Prévia dos dados padronizados
         st.subheader("Prévia das movimentações")
 
         st.dataframe(
@@ -102,7 +108,7 @@ def dialog_importar_extrato():
             hide_index=True,
         )
 
-        # 6. Salvamento no banco
+        # 7. Salvamento no banco
         if st.button(
             "💾 Salvar extrato no banco",
             type="primary",

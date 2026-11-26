@@ -19,79 +19,11 @@ from front.components.cache import (
     limpar_cache_categorias,
 )
 
-
-def obter_campo(linha, nomes):
-
-    nomes_normalizados = [
-        nome.casefold()
-        for nome in nomes
-    ]
-
-    for coluna in linha.index:
-
-        if str(coluna).strip().casefold() in nomes_normalizados:
-            return linha[coluna]
-
-    return None
-
-
-def formatar_texto(valor):
-
-    if valor is None or pd.isna(valor):
-        return "—"
-
-    return str(valor)
-
-
-def preparar_tabela_movimentacoes(movimentacoes):
-
-    if movimentacoes is None or movimentacoes.empty:
-        return pd.DataFrame()
-
-    registros = []
-
-    for _, linha in movimentacoes.iterrows():
-
-        data = obter_campo(
-            linha,
-            ["Data", "data"],
-        )
-
-        detalhes = obter_campo(
-            linha,
-            ["Detalhes", "detalhes"],
-        )
-
-        lancamento = obter_campo(
-            linha,
-            ["Lançamento", "Lancamento", "lancamento"],
-        )
-
-        valor = obter_campo(
-            linha,
-            ["Valor", "valor"],
-        )
-
-        tipo = obter_campo(
-            linha,
-            ["Tipo", "tipo"],
-        )
-
-        banco = obter_campo(
-            linha,
-            ["Banco", "banco", "banco_origem"],
-        )
-
-        registros.append({
-            "Data": formatar_texto(data),
-            "Detalhes": formatar_texto(detalhes),
-            "Lançamento": formatar_texto(lancamento),
-            "Valor": valor,
-            "Tipo": formatar_texto(tipo),
-            "Banco": formatar_texto(banco),
-        })
-
-    return pd.DataFrame(registros)
+from services.movimentacoes import (
+    obter_campo,
+    formatar_texto,
+    preparar_tabela_movimentacoes,
+)
 
 
 @st.dialog("Criar nova categoria")
@@ -347,7 +279,16 @@ def _render_tabela_movimentacoes_pendentes(
 
         if indice < len(movimentacoes):
 
-            linha = movimentacoes.iloc[indice]
+            linha_original = movimentacoes.iloc[indice]
+
+            # Recupera os dados já tratados para exibir no painel.
+            linha = df_movimentacoes.iloc[indice].copy()
+
+            # Mantém o ID original, necessário para salvar a classificação.
+            linha["movimentacao_id"] = obter_campo(
+                linha_original,
+                ["movimentacao_id", "id"],
+            )
 
             render_painel_classificacao(
                 linha,

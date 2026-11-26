@@ -1,8 +1,10 @@
 
 import streamlit as st
+import extra_streamlit_components as stx
 
 from api.extratos import criar_tabelas
 from api.categorias import criar_categorias_padrao
+from api.autenticacao import validar_token_sessao
 
 from front.pages.login import render_login
 
@@ -31,11 +33,25 @@ def render_app():
         st.error(f"Erro ao conectar com o banco: {erro}")
         return
 
-    # Verifica se existe usuário autenticado
+    # Gerenciador de cookies
+    cookie_manager = stx.CookieManager(key="financias_cookie_manager")
+    cookies = cookie_manager.get_all() or {}
+
+    # Recupera o usuário pela sessão salva no navegador
     usuario = st.session_state.get("usuario")
 
     if not usuario:
-        render_login()
+        token = cookies.get("financias_sessao")
+
+        if token:
+            usuario = validar_token_sessao(token)
+
+            if usuario:
+                st.session_state["usuario"] = usuario
+
+    # Se não houver sessão válida, mostra o login
+    if not usuario:
+        render_login(cookie_manager)
         return
 
     usuario_id = usuario["id"]
@@ -82,7 +98,12 @@ def render_app():
         with coluna_sair:
             if st.button("Sair", use_container_width=True):
                 limpar_cache_categorias()
+
                 st.session_state.pop("usuario", None)
+                st.session_state.pop("token_sessao", None)
+
+                cookie_manager.delete("financias_sessao")
+
                 st.rerun()
 
     # Navegação principal

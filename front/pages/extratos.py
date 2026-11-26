@@ -14,6 +14,103 @@ from front.components.importar_extrato import (
 )
 
 
+@st.dialog("Gerenciar extrato", width="large")
+def dialog_gerenciar_extrato(
+    extrato_id,
+    nome_arquivo,
+    banco_origem,
+    usuario_id,
+):
+
+    st.write(f"**Arquivo:** {nome_arquivo}")
+    st.write(f"**Banco:** {banco_origem}")
+
+    try:
+        df_movimentacoes = buscar_movimentacoes(
+            extrato_id,
+            usuario_id,
+        )
+
+        st.write(
+            f"**Movimentações:** {len(df_movimentacoes)}"
+        )
+
+        df_editado = st.data_editor(
+            df_movimentacoes,
+            width="stretch",
+            hide_index=True,
+            num_rows="dynamic",
+            key=f"editor_{usuario_id}_{extrato_id}",
+        )
+
+        st.divider()
+
+        col_salvar, col_excluir = st.columns(2)
+
+        with col_salvar:
+
+            if st.button(
+                "💾 Salvar alterações",
+                type="primary",
+                width="stretch",
+                key=f"salvar_extrato_{usuario_id}_{extrato_id}",
+            ):
+
+                try:
+                    atualizar_extrato(
+                        extrato_id,
+                        df_editado,
+                        usuario_id,
+                    )
+
+                    st.success(
+                        "Alterações salvas com sucesso!"
+                    )
+
+                    st.rerun()
+
+                except Exception as erro:
+                    st.error(
+                        f"Erro ao atualizar: {erro}"
+                    )
+
+        with col_excluir:
+
+            confirmar = st.checkbox(
+                "Confirmar exclusão",
+                key=f"confirmar_exclusao_{usuario_id}_{extrato_id}",
+            )
+
+            if st.button(
+                "🗑️ Excluir extrato",
+                disabled=not confirmar,
+                width="stretch",
+                key=f"excluir_extrato_{usuario_id}_{extrato_id}",
+            ):
+
+                try:
+                    excluir_extrato(
+                        extrato_id,
+                        usuario_id,
+                    )
+
+                    st.success(
+                        "Extrato excluído com sucesso!"
+                    )
+
+                    st.rerun()
+
+                except Exception as erro:
+                    st.error(
+                        f"Erro ao excluir: {erro}"
+                    )
+
+    except Exception as erro:
+        st.error(
+            f"Não foi possível consultar as movimentações: {erro}"
+        )
+
+
 def render_extratos_salvos():
 
     usuario_id = st.session_state["usuario"]["id"]
@@ -24,6 +121,7 @@ def render_extratos_salvos():
         st.subheader("Meus extratos")
 
     with col_botao:
+
         if st.button(
             "📥 Importar extrato",
             type="primary",
@@ -48,105 +146,28 @@ def render_extratos_salvos():
 
         df_extratos = pd.DataFrame(extratos)
 
-        st.dataframe(
+        evento = st.dataframe(
             df_extratos,
             width="stretch",
             hide_index=True,
+            on_select="rerun",
+            selection_mode="single-row",
+            key=f"tabela_extratos_{usuario_id}",
         )
 
-        st.divider()
+        linhas_selecionadas = evento.selection.rows
 
-        st.subheader("Consultar e editar extrato")
+        if linhas_selecionadas:
 
-        opcoes = {
-            (
-                f"{item['nome_arquivo']} - "
-                f"{item['banco_origem']} "
-                f"(ID: {item['id']})"
-            ): item["id"]
-            for item in extratos
-        }
+            indice = linhas_selecionadas[0]
+            extrato = extratos[indice]
 
-        selecionado = st.selectbox(
-            "Selecione um extrato",
-            options=list(opcoes.keys()),
-        )
-
-        extrato_id = opcoes[selecionado]
-
-        df_movimentacoes = buscar_movimentacoes(
-            extrato_id,
-            usuario_id,
-        )
-
-        st.write(
-            f"**Movimentações:** {len(df_movimentacoes)}"
-        )
-
-        df_editado = st.data_editor(
-            df_movimentacoes,
-            width="stretch",
-            hide_index=True,
-            num_rows="dynamic",
-            key=f"editor_{usuario_id}_{extrato_id}",
-        )
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            if st.button(
-                "💾 Salvar alterações",
-                type="primary",
-                width="stretch"
-            ):
-
-                try:
-                    atualizar_extrato(
-                        extrato_id,
-                        df_editado,
-                        usuario_id,
-                    )
-
-                    st.success(
-                        "Alterações salvas com sucesso!"
-                    )
-
-                    st.rerun()
-
-                except Exception as erro:
-                    st.error(
-                        f"Erro ao atualizar: {erro}"
-                    )
-
-        with col2:
-
-            confirmar = st.checkbox(
-                "Confirmo que desejo excluir este extrato",
-                key=f"confirmar_exclusao_{usuario_id}_{extrato_id}",
+            dialog_gerenciar_extrato(
+                extrato["id"],
+                extrato["nome_arquivo"],
+                extrato["banco_origem"],
+                usuario_id,
             )
-
-            if st.button(
-                "🗑️ Excluir extrato",
-                disabled=not confirmar,
-                width="stretch"
-            ):
-
-                try:
-                    excluir_extrato(
-                        extrato_id,
-                        usuario_id,
-                    )
-
-                    st.success(
-                        "Extrato excluído com sucesso!"
-                    )
-
-                    st.rerun()
-
-                except Exception as erro:
-                    st.error(
-                        f"Erro ao excluir: {erro}"
-                    )
 
     except Exception as erro:
         st.error(
