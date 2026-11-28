@@ -131,7 +131,8 @@ def render_app():
                 st.session_state.pop("usuario", None)
                 st.session_state.pop("token_sessao", None)
 
-                cookie_manager.delete("financias_sessao")
+                if cookie_manager.get("financias_sessao") is not None:
+                    cookie_manager.delete("financias_sessao")
 
                 st.rerun()
 
