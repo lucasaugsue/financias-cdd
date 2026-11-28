@@ -103,7 +103,7 @@ def dialog_movimentacao(linha, usuario_id):
     with col1:
         if st.button(
             "Fechar",
-            use_container_width=True,
+            width='stretch'
         ):
             limpar_selecao_movimentacoes()
             st.rerun()
@@ -112,7 +112,7 @@ def dialog_movimentacao(linha, usuario_id):
         if st.button(
             "Salvar alteração",
             type="primary",
-            use_container_width=True,
+            width='stretch'
         ):
 
             sucesso = editar_categoria_movimentacao(

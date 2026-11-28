@@ -179,7 +179,12 @@ def render_grafico_categorias(df):
         dados["finalidade"].isin([finalidade, "Ambas"])
     ]
 
-    tipo_coluna = "Tipo Lançamento"
+    # Identifica a coluna de tipo de lançamento
+    tipo_coluna = (
+        "Tipo"
+        if "Tipo" in dados.columns
+        else "Tipo Lançamento"
+    )
 
     if tipo_coluna not in dados.columns:
         st.warning("Não foi possível identificar o tipo de lançamento.")
@@ -238,7 +243,7 @@ def render_grafico_categorias(df):
                     },
                 },
             },
-            use_container_width=True
+            width='stretch'
         )
 
     # Detalhamento abaixo do seletor

@@ -16,6 +16,28 @@ from front.pages.categorias import render_categorias
 
 from front.components.cache import limpar_cache_categorias
 
+st.markdown(
+    """
+    <style>
+        #MainMenu {
+            visibility: hidden;
+        }
+
+        header {
+            visibility: hidden;
+        }
+
+        footer {
+            visibility: hidden;
+        }
+
+        [data-testid="stToolbar"] {
+            visibility: hidden;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 def render_app():
 
@@ -96,7 +118,7 @@ def render_app():
             st.markdown(f"Olá, **{usuario['nome']}**!")
 
         with coluna_sair:
-            if st.button("Sair", use_container_width=True):
+            if st.button("Sair", width='stretch'):
                 limpar_cache_categorias()
 
                 st.session_state.pop("usuario", None)

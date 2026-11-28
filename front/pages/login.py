@@ -27,7 +27,7 @@ def render_login(cookie_manager):
 
             enviar = st.form_submit_button(
                 "Entrar",
-                use_container_width=True,
+                width='stretch'
             )
 
             if enviar:
@@ -65,7 +65,7 @@ def render_login(cookie_manager):
 
             enviar = st.form_submit_button(
                 "Criar conta",
-                use_container_width=True,
+                width='stretch'
             )
 
             if enviar:

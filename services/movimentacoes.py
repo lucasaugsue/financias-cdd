@@ -205,7 +205,9 @@ def preparar_movimentacoes(df):
 
     coluna_data = identificar_coluna_data(df)
     coluna_tipo = identificar_coluna_tipo(df)
+    coluna_valor = identificar_coluna_valor(df)
 
+    # Padroniza as datas.
     if coluna_data:
         df[coluna_data] = pd.to_datetime(
             df[coluna_data],
@@ -213,24 +215,67 @@ def preparar_movimentacoes(df):
             dayfirst=True,
         ).dt.date
 
-    # Se o banco não fornecer o tipo de lançamento,
-    # identificar pela coluna Valor.
-    if not coluna_tipo:
+    # Se não existir uma coluna de tipo, cria uma pelo valor.
+    if not coluna_tipo or coluna_tipo not in df.columns:
 
-        coluna_valor = identificar_coluna_valor(df)
+        if not coluna_valor:
+            raise ValueError(
+                "Não foi possível identificar a coluna de valor."
+            )
+
+        coluna_tipo = "Tipo"
+
+        df[coluna_tipo] = "Não identificado"
+
+        valores = df[coluna_valor].apply(
+            converter_valor_monetario
+        )
+
+        df.loc[valores > 0, coluna_tipo] = "Entrada"
+        df.loc[valores < 0, coluna_tipo] = "Saída"
+        df.loc[valores == 0, coluna_tipo] = "Neutro"
+
+    else:
+        # Normaliza os valores existentes na coluna de tipo.
+        df[coluna_tipo] = (
+            df[coluna_tipo]
+            .astype(str)
+            .str.strip()
+            .str.casefold()
+            .replace({
+                "entrada": "Entrada",
+                "saída": "Saída",
+                "saida": "Saída",
+            })
+        )
+
+        # Corrige registros sem tipo identificado.
+        tipos_vazios = df[coluna_tipo].isin([
+            "none",
+            "nan",
+            "",
+            "não identificado",
+        ])
 
         if coluna_valor:
-
             valores = df[coluna_valor].apply(
                 converter_valor_monetario
             )
 
-            df["Tipo lançamento"] = "Não identificado"
+            df.loc[
+                tipos_vazios & (valores > 0),
+                coluna_tipo
+            ] = "Entrada"
 
-            df.loc[valores > 0, "Tipo lançamento"] = "Entrada"
-            df.loc[valores < 0, "Tipo lançamento"] = "Saída"
+            df.loc[
+                tipos_vazios & (valores < 0),
+                coluna_tipo
+            ] = "Saída"
 
-            coluna_tipo = "Tipo lançamento"
+            df.loc[
+                tipos_vazios & (valores == 0),
+                coluna_tipo
+            ] = "Neutro"
 
     return df, coluna_data, coluna_tipo
 
