@@ -179,27 +179,22 @@ def render_grafico_categorias(df):
         dados["finalidade"].isin([finalidade, "Ambas"])
     ]
 
-    # Identifica a coluna de tipo de lançamento
-    tipo_coluna = (
-        "Tipo"
-        if "Tipo" in dados.columns
-        else "Tipo Lançamento"
-    )
-
-    if tipo_coluna not in dados.columns:
-        st.warning("Não foi possível identificar o tipo de lançamento.")
+    # Identifica a coluna de fluxo financeiro.
+    if "Fluxo" not in dados.columns:
+        st.warning("Não foi possível identificar o fluxo financeiro.")
         return
 
-    tipo_lancamento = (
+    fluxo_lancamento = (
         "entrada"
         if tipo_analise == "Receitas"
         else "saída"
     )
 
     dados = dados[
-        dados[tipo_coluna].astype(str).str.strip().str.casefold()
-        == tipo_lancamento
+        dados["Fluxo"].astype(str).str.strip().str.casefold()
+        == fluxo_lancamento
     ]
+
 
     if dados.empty:
         with coluna_grafico:

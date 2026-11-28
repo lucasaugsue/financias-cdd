@@ -9,7 +9,10 @@ from services.arquivos import (
     limpar_extrato_banco_brasil,
 )
 
-from services.movimentacoes import padronizar_movimentacoes
+from services.movimentacoes import (
+    padronizar_movimentacoes,
+    categorizar_movimentacoes,
+)
 
 
 @st.dialog("Importar novos extratos", width="large")
@@ -94,7 +97,33 @@ def dialog_importar_extrato():
                     # 4. Padronização
                     df = padronizar_movimentacoes(df)
 
-                    # 5. Resumo
+                    # 5. Identificação do banco
+                    df["Banco"] = banco_origem
+
+                    # 6. Categorização automática
+                    df = categorizar_movimentacoes(df, usuario_id)
+
+                    # 7. Organiza as oito colunas para visualização
+                    colunas_visualizacao = [
+                        "Data",
+                        "Valor",
+                        "Lançamento",
+                        "Detalhes",
+                        "Fluxo",
+                        "Identificador",
+                        "Banco",
+                        "categoria",
+                    ]
+
+                    df_visualizacao = df.reindex(
+                        columns=colunas_visualizacao
+                    ).rename(
+                        columns={
+                            "categoria": "Categoria",
+                        }
+                    )
+
+                    # 8. Resumo
                     col1, col2, col3 = st.columns(3)
 
                     col1.metric(
@@ -123,7 +152,7 @@ def dialog_importar_extrato():
                     )
 
                     st.dataframe(
-                        df,
+                        df_visualizacao,
                         width="stretch",
                         hide_index=True,
                     )

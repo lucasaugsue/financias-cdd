@@ -30,17 +30,25 @@ def normalizar_nome_coluna(nome):
 
 
 def obter_campo(linha, nomes):
-    """Localiza um campo em uma linha usando nomes alternativos."""
+    """Localiza um campo usando nomes alternativos, ignorando valores vazios."""
 
-    nomes_normalizados = {
-        normalizar_nome_coluna(nome)
-        for nome in nomes
-    }
+    for nome in nomes:
 
-    for coluna in linha.index:
+        nome_normalizado = normalizar_nome_coluna(nome)
 
-        if normalizar_nome_coluna(coluna) in nomes_normalizados:
-            return linha[coluna]
+        for coluna in linha.index:
+
+            if normalizar_nome_coluna(coluna) == nome_normalizado:
+
+                valor = linha[coluna]
+
+                if pd.isna(valor):
+                    continue
+
+                if isinstance(valor, str) and not valor.strip():
+                    continue
+
+                return valor
 
     return None
 
@@ -58,16 +66,13 @@ def identificar_coluna_data(df):
 
 
 def identificar_coluna_tipo(df):
-    """Identifica a coluna de tipo de lançamento."""
+    """Identifica a coluna que representa o fluxo financeiro."""
 
     return next(
         (
             coluna for coluna in df.columns
             if normalizar_nome_coluna(coluna) in [
-                "tipo",
-                "tipo lancamento",
-                "tipo de lancamento",
-                "natureza",
+                "fluxo",
             ]
         ),
         None,
@@ -198,8 +203,9 @@ def preparar_tabela_movimentacoes(movimentacoes):
     return pd.DataFrame(registros)
 
 
+
 def preparar_movimentacoes(df):
-    """Prepara os dados e identifica o tipo de lançamento."""
+    """Prepara os dados e identifica o fluxo financeiro."""
 
     df = df.copy()
 
@@ -215,7 +221,7 @@ def preparar_movimentacoes(df):
             dayfirst=True,
         ).dt.date
 
-    # Se não existir uma coluna de tipo, cria uma pelo valor.
+    # Se não existir Fluxo, cria a coluna pelo valor.
     if not coluna_tipo or coluna_tipo not in df.columns:
 
         if not coluna_valor:
@@ -223,8 +229,7 @@ def preparar_movimentacoes(df):
                 "Não foi possível identificar a coluna de valor."
             )
 
-        coluna_tipo = "Tipo"
-
+        coluna_tipo = "Fluxo"
         df[coluna_tipo] = "Não identificado"
 
         valores = df[coluna_valor].apply(
@@ -236,7 +241,7 @@ def preparar_movimentacoes(df):
         df.loc[valores == 0, coluna_tipo] = "Neutro"
 
     else:
-        # Normaliza os valores existentes na coluna de tipo.
+        # Normaliza os valores existentes na coluna Fluxo.
         df[coluna_tipo] = (
             df[coluna_tipo]
             .astype(str)
@@ -246,11 +251,12 @@ def preparar_movimentacoes(df):
                 "entrada": "Entrada",
                 "saída": "Saída",
                 "saida": "Saída",
+                "neutro": "Neutro",
             })
         )
 
-        # Corrige registros sem tipo identificado.
-        tipos_vazios = df[coluna_tipo].isin([
+        # Corrige registros sem fluxo identificado.
+        fluxos_vazios = df[coluna_tipo].isin([
             "none",
             "nan",
             "",
@@ -263,17 +269,17 @@ def preparar_movimentacoes(df):
             )
 
             df.loc[
-                tipos_vazios & (valores > 0),
+                fluxos_vazios & (valores > 0),
                 coluna_tipo
             ] = "Entrada"
 
             df.loc[
-                tipos_vazios & (valores < 0),
+                fluxos_vazios & (valores < 0),
                 coluna_tipo
             ] = "Saída"
 
             df.loc[
-                tipos_vazios & (valores == 0),
+                fluxos_vazios & (valores == 0),
                 coluna_tipo
             ] = "Neutro"
 
@@ -612,56 +618,69 @@ def padronizar_movimentacoes(df):
 
     for _, linha in df.iterrows():
 
-        # Identifica os campos de cada banco.
+        # Data
         data = obter_campo(
             linha,
             ["Data", "Date"],
         )
 
+        # Valor
         valor_original = obter_campo(
             linha,
             ["Valor", "Amount", "BRL"],
         )
 
+        # Descrição
         descricao = obter_campo(
             linha,
             ["Descrição", "Descricao", "Description"],
         )
 
+        # Detalhes
         detalhes = obter_campo(
             linha,
             ["Detalhes", "Details"],
         )
 
+        # Lançamento
         lancamento = obter_campo(
             linha,
             ["Lançamento", "Lancamento", "Transaction"],
         )
 
+        # Identificador
         identificador = obter_campo(
             linha,
-            ["Identificador", "ID", "Identifier"],
+            [
+                "Identificador",
+                "N documento",
+                "N° documento",
+                "Nº documento",
+                "Número documento",
+                "Numero documento",
+                "ID",
+                "Identifier",
+            ],
         )
 
         # Converte o valor para formato numérico.
         valor = converter_valor_monetario(valor_original)
 
-        # Determina o tipo pelo sinal do valor.
+        # Determina o fluxo pelo sinal do valor.
         if valor is None:
-            tipo = "Não identificado"
+            fluxo = "Não identificado"
 
         elif valor > 0:
-            tipo = "Entrada"
+            fluxo = "Entrada"
 
         elif valor < 0:
-            tipo = "Saída"
+            fluxo = "Saída"
 
         else:
-            tipo = "Neutro"
+            fluxo = "Neutro"
 
-        # Se o banco fornecer uma descrição única,
-        # separa o lançamento dos detalhes.
-        if descricao is not None and not pd.isna(descricao):
+        # Se existir uma descrição única, separa lançamento e detalhes.
+        if descricao is not None:
 
             partes = str(descricao).split(" - ", 1)
 
@@ -687,7 +706,7 @@ def padronizar_movimentacoes(df):
             "Valor": valor,
             "Lançamento": lancamento,
             "Detalhes": detalhes,
-            "Tipo": tipo,
+            "Fluxo": fluxo,
             "Identificador": identificador,
         })
 

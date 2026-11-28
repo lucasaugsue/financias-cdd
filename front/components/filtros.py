@@ -117,7 +117,7 @@ def render_filtros(df, coluna_data, coluna_tipo):
 
     with col3:
         tipo = st.selectbox(
-            "Tipo de lançamento",
+            "Fluxo",
             options=["Todos"] + tipos,
             key=chave_tipo
         )

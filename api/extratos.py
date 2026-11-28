@@ -164,7 +164,11 @@ def buscar_movimentacoes(extrato_id, usuario_id):
     with engine.connect() as connection:
         resultado = connection.execute(
             text("""
-                SELECT m.id, m.extrato_id, m.dados
+                SELECT
+                    m.id,
+                    m.extrato_id,
+                    m.dados,
+                    m.categoria_id
                 FROM movimentacoes m
                 INNER JOIN extratos e
                     ON e.id = m.extrato_id
@@ -180,7 +184,18 @@ def buscar_movimentacoes(extrato_id, usuario_id):
 
         registros = resultado.mappings().all()
 
-    return pd.DataFrame([dict(registro["dados"]) for registro in registros])
+    movimentacoes = []
+
+    for registro in registros:
+
+        dados = dict(registro["dados"])
+
+        # Recupera a categoria salva na coluna relacional
+        dados["categoria_id"] = registro["categoria_id"]
+
+        movimentacoes.append(dados)
+
+    return pd.DataFrame(movimentacoes)
 
 
 def salvar_extrato(nome_arquivo, banco_origem, hash_arquivo, df, usuario_id):
@@ -356,7 +371,7 @@ def excluir_extrato(extrato_id, usuario_id):
 
 
 def listar_movimentacoes_consolidadas(usuario_id):
-    """Retorna movimentações dos extratos do usuário."""
+    """Retorna movimentações padronizadas dos extratos do usuário."""
 
     with engine.connect() as connection:
         resultado = connection.execute(
@@ -382,15 +397,164 @@ def listar_movimentacoes_consolidadas(usuario_id):
     registros = []
 
     for linha in linhas:
-        registro = dict(linha["dados"])
 
-        registro["movimentacao_id"] = linha["movimentacao_id"]
-        registro["categoria_id"] = linha["categoria_id"]
-        registro["extrato_id"] = linha["extrato_id"]
-        registro["banco_origem"] = linha["banco_origem"]
-        registro["arquivo_origem"] = linha["nome_arquivo"]
+        dados = dict(linha["dados"])
 
-        registros.append(registro)
+        # Recupera o primeiro campo preenchido entre as alternativas.
+        def obter_valor(*nomes):
+
+            for nome in nomes:
+
+                valor = dados.get(nome)
+
+                if valor is not None and str(valor).strip():
+                    return valor
+
+            return None
+
+        # Valor da movimentação.
+        valor = obter_valor(
+            "Valor",
+            "Amount",
+            "BRL",
+        )
+
+        try:
+            if valor is not None:
+
+                if isinstance(valor, (int, float)):
+                    valor_numerico = float(valor)
+
+                else:
+                    valor_limpo = (
+                        str(valor)
+                        .replace("R$", "")
+                        .replace(" ", "")
+                        .strip()
+                    )
+
+                    if "," in valor_limpo:
+                        valor_limpo = (
+                            valor_limpo
+                            .replace(".", "")
+                            .replace(",", ".")
+                        )
+
+                    valor_numerico = float(valor_limpo)
+
+            else:
+                valor_numerico = None
+
+        except (TypeError, ValueError):
+            valor_numerico = None
+
+        # Fluxo: prioriza o campo novo e depois aproveita o antigo.
+        fluxo = obter_valor(
+            "Fluxo",
+            "Tipo",
+        )
+
+        if fluxo is not None:
+
+            fluxo_normalizado = str(fluxo).strip().casefold()
+
+            if fluxo_normalizado == "entrada":
+                fluxo = "Entrada"
+
+            elif fluxo_normalizado in ("saída", "saida"):
+                fluxo = "Saída"
+
+            elif fluxo_normalizado == "neutro":
+                fluxo = "Neutro"
+
+            else:
+                fluxo = None
+
+        # Se não houver fluxo, calcula pelo sinal do valor.
+        if fluxo is None:
+
+            if valor_numerico is None:
+                fluxo = "Não identificado"
+
+            elif valor_numerico > 0:
+                fluxo = "Entrada"
+
+            elif valor_numerico < 0:
+                fluxo = "Saída"
+
+            else:
+                fluxo = "Neutro"
+
+        # Identificador: aproveita o campo antigo ou o novo.
+        identificador = obter_valor(
+            "Identificador",
+            "N documento",
+            "N° documento",
+            "Nº documento",
+            "Número documento",
+            "Numero documento",
+            "ID",
+            "Identifier",
+        )
+
+        # Converte identificadores numéricos para texto sem casas decimais.
+        if identificador is not None:
+
+            try:
+                numero = float(identificador)
+
+                if numero.is_integer():
+                    identificador = str(int(numero))
+                else:
+                    identificador = str(identificador)
+
+            except (TypeError, ValueError):
+                identificador = str(identificador)
+
+        # Preserva o lançamento já existente.
+        lancamento = obter_valor(
+            "Lançamento",
+            "Lancamento",
+            "Transaction",
+        )
+
+        # Recupera detalhes.
+        detalhes = obter_valor(
+            "Detalhes",
+            "Details",
+        )
+
+        # Aproveita a descrição quando não há lançamento.
+        descricao = obter_valor(
+            "Descrição",
+            "Descricao",
+            "Description",
+        )
+
+        if lancamento is None and descricao is not None:
+
+            partes = str(descricao).split(" - ", 1)
+
+            lancamento = partes[0].strip()
+
+            if detalhes is None and len(partes) > 1:
+                detalhes = partes[1].strip()
+
+        registros.append({
+            "Data": obter_valor("Data", "Date"),
+            "Valor": valor_numerico,
+            "Lançamento": lancamento,
+            "Detalhes": detalhes,
+            "Fluxo": fluxo,
+            "Identificador": identificador,
+
+            # Campos internos utilizados pelo sistema.
+            "movimentacao_id": linha["movimentacao_id"],
+            "categoria_id": linha["categoria_id"],
+            "extrato_id": linha["extrato_id"],
+            "banco_origem": linha["banco_origem"],
+            "arquivo_origem": linha["nome_arquivo"],
+        })
 
     return pd.DataFrame(registros)
 
