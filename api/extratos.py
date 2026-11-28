@@ -568,3 +568,87 @@ def editar_categoria_movimentacao(movimentacao_id, categoria_id, usuario_id):
         )
 
         return resultado.rowcount > 0
+
+
+def contar_pendentes_por_detalhes(
+    detalhes,
+    usuario_id,
+    movimentacao_id,
+):
+    """Conta outras movimentações pendentes com o mesmo detalhamento."""
+
+    if not detalhes or not str(detalhes).strip():
+        return 0
+
+    with engine.connect() as connection:
+        resultado = connection.execute(
+            text("""
+                SELECT COUNT(*)
+                FROM movimentacoes m
+                INNER JOIN extratos e
+                    ON e.id = m.extrato_id
+                WHERE e.usuario_id = :usuario_id
+                  AND m.categoria_id IS NULL
+                  AND m.id <> :movimentacao_id
+                  AND LOWER(TRIM(
+                      COALESCE(
+                          m.dados ->> 'Detalhes',
+                          m.dados ->> 'detalhes',
+                          ''
+                      )
+                  )) = LOWER(TRIM(:detalhes));
+            """),
+            {
+                "usuario_id": usuario_id,
+                "movimentacao_id": movimentacao_id,
+                "detalhes": str(detalhes).strip(),
+            }
+        )
+
+        return resultado.scalar_one()
+
+
+def atualizar_categoria_por_detalhes(
+    detalhes,
+    categoria_id,
+    usuario_id,
+    movimentacao_id,
+):
+    """Classifica outras movimentações pendentes com o mesmo detalhamento."""
+
+    if not detalhes or not str(detalhes).strip():
+        return 0
+
+    with engine.begin() as connection:
+        resultado = connection.execute(
+            text("""
+                UPDATE movimentacoes m
+                SET categoria_id = :categoria_id
+                FROM extratos e
+                WHERE e.id = m.extrato_id
+                  AND e.usuario_id = :usuario_id
+                  AND m.categoria_id IS NULL
+                  AND m.id <> :movimentacao_id
+                  AND LOWER(TRIM(
+                      COALESCE(
+                          m.dados ->> 'Detalhes',
+                          m.dados ->> 'detalhes',
+                          ''
+                      )
+                  )) = LOWER(TRIM(:detalhes))
+                  AND EXISTS (
+                      SELECT 1
+                      FROM categorias c
+                      WHERE c.id = :categoria_id
+                        AND c.usuario_id = :usuario_id
+                  );
+            """),
+            {
+                "usuario_id": usuario_id,
+                "movimentacao_id": movimentacao_id,
+                "categoria_id": categoria_id,
+                "detalhes": str(detalhes).strip(),
+            }
+        )
+
+        return resultado.rowcount

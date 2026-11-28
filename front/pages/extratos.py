@@ -14,7 +14,32 @@ from front.components.importar_extrato import (
 )
 
 
-@st.dialog("Gerenciar extrato", width="large")
+def limpar_selecao_extratos():
+
+    usuario_id = st.session_state.get(
+        "usuario_id_dialog_extrato"
+    )
+
+    if usuario_id is None:
+        return
+
+    chave_versao = f"versao_tabela_extratos_{usuario_id}"
+
+    st.session_state[chave_versao] = (
+        st.session_state.get(chave_versao, 0) + 1
+    )
+
+    st.session_state.pop(
+        "usuario_id_dialog_extrato",
+        None,
+    )
+
+
+@st.dialog(
+    "Gerenciar extrato",
+    width="large",
+    on_dismiss=limpar_selecao_extratos,
+)
 def dialog_gerenciar_extrato(
     extrato_id,
     nome_arquivo,
@@ -63,6 +88,8 @@ def dialog_gerenciar_extrato(
                         usuario_id,
                     )
 
+                    limpar_selecao_extratos()
+
                     st.success(
                         "Alterações salvas com sucesso!"
                     )
@@ -93,6 +120,8 @@ def dialog_gerenciar_extrato(
                         extrato_id,
                         usuario_id,
                     )
+
+                    limpar_selecao_extratos()
 
                     st.success(
                         "Extrato excluído com sucesso!"
@@ -146,13 +175,22 @@ def render_extratos_salvos():
 
         df_extratos = pd.DataFrame(extratos)
 
+        versao_tabela = st.session_state.get(
+            f"versao_tabela_extratos_{usuario_id}",
+            0,
+        )
+
+        chave_tabela = (
+            f"tabela_extratos_{usuario_id}_{versao_tabela}"
+        )
+
         evento = st.dataframe(
             df_extratos,
             width="stretch",
             hide_index=True,
             on_select="rerun",
             selection_mode="single-row",
-            key=f"tabela_extratos_{usuario_id}",
+            key=chave_tabela,
         )
 
         linhas_selecionadas = evento.selection.rows
@@ -161,6 +199,10 @@ def render_extratos_salvos():
 
             indice = linhas_selecionadas[0]
             extrato = extratos[indice]
+
+            st.session_state[
+                "usuario_id_dialog_extrato"
+            ] = usuario_id
 
             dialog_gerenciar_extrato(
                 extrato["id"],

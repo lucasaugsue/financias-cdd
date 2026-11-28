@@ -26,6 +26,27 @@ from services.movimentacoes import (
 )
 
 
+def limpar_selecao_movimentacoes():
+
+    usuario_id = st.session_state.get(
+        "usuario_id_dialog_classificacao"
+    )
+
+    if usuario_id is None:
+        return
+
+    chave_versao = f"versao_tabela_pendentes_{usuario_id}"
+
+    st.session_state[chave_versao] = (
+        st.session_state.get(chave_versao, 0) + 1
+    )
+
+    st.session_state.pop(
+        "usuario_id_dialog_classificacao",
+        None,
+    )
+
+
 @st.dialog("Criar nova categoria")
 def dialog_nova_categoria(usuario_id):
 
@@ -73,171 +94,175 @@ def dialog_nova_categoria(usuario_id):
                 st.rerun()
 
 
+@st.dialog(
+    "Classificar movimentação",
+    on_dismiss=limpar_selecao_movimentacoes,
+)
 def render_painel_classificacao(linha, categorias, usuario_id):
 
-    st.subheader("Classificar movimentação")
+    detalhes = obter_campo(
+        linha,
+        ["Detalhes", "detalhes"],
+    )
 
-    with st.container(border=True):
+    lancamento = obter_campo(
+        linha,
+        ["Lançamento", "Lancamento", "lancamento"],
+    )
 
-        detalhes = obter_campo(
-            linha,
-            ["Detalhes", "detalhes"],
+    data = obter_campo(
+        linha,
+        ["Data", "data"],
+    )
+
+    valor = obter_campo(
+        linha,
+        ["Valor", "valor"],
+    )
+
+    tipo = obter_campo(
+        linha,
+        ["Tipo", "tipo"],
+    )
+
+    banco = obter_campo(
+        linha,
+        ["Banco", "banco", "banco_origem"],
+    )
+
+    st.markdown("**Informações da movimentação**")
+    st.markdown(f"### {formatar_texto(detalhes)}")
+
+    if lancamento is not None and not pd.isna(lancamento):
+        st.caption(formatar_texto(lancamento))
+
+    col_data, col_valor, col_tipo = st.columns(3)
+
+    with col_data:
+        st.caption("Data")
+        st.write(formatar_texto(data))
+
+    with col_valor:
+        st.caption("Valor")
+        st.write(formatar_texto(valor))
+
+    with col_tipo:
+        st.caption("Tipo")
+        st.write(formatar_texto(tipo))
+
+    st.caption(f"Banco: {formatar_texto(banco)}")
+
+    st.divider()
+
+    st.markdown("**Classificação**")
+
+    if st.button(
+        "+ Nova categoria",
+        key=f"nova_categoria_pendente_{usuario_id}",
+    ):
+        st.session_state["abrir_dialog_nova_categoria"] = True
+        st.rerun()
+
+    opcoes_categorias = {
+        categoria["categoria"]: categoria["id"]
+        for categoria in categorias
+    }
+
+    categoria_atual = st.session_state.get(
+        f"categoria_movimentacao_pendente_{usuario_id}"
+    )
+
+    indice_categoria = (
+        list(opcoes_categorias.keys()).index(categoria_atual)
+        if categoria_atual in opcoes_categorias
+        else 0
+    )
+
+    categoria_escolhida = st.selectbox(
+        "Selecione uma categoria",
+        options=list(opcoes_categorias.keys()),
+        index=indice_categoria,
+        key=f"categoria_movimentacao_pendente_{usuario_id}",
+    )
+
+    categoria_id = opcoes_categorias[categoria_escolhida]
+
+    cadastrar_palavra = st.checkbox(
+        "Cadastrar palavra-chave para futuras movimentações",
+        key=f"cadastrar_palavra_movimentacao_{usuario_id}",
+    )
+
+    movimentacao_id = obter_campo(
+        linha,
+        ["movimentacao_id", "id"],
+    )
+
+    palavra_chave = ""
+
+    if cadastrar_palavra:
+        palavra_chave = st.text_input(
+            "Palavra-chave",
+            placeholder="Ex.: MERCADO, UBER, FARMACIA...",
+            key=f"palavra_chave_movimentacao_{usuario_id}_{movimentacao_id}",
         )
 
-        lancamento = obter_campo(
-            linha,
-            ["Lançamento", "Lancamento", "lancamento"],
-        )
-
-        data = obter_campo(
-            linha,
-            ["Data", "data"],
-        )
-
-        valor = obter_campo(
-            linha,
-            ["Valor", "valor"],
-        )
-
-        tipo = obter_campo(
-            linha,
-            ["Tipo", "tipo"],
-        )
-
-        banco = obter_campo(
-            linha,
-            ["Banco", "banco", "banco_origem"],
-        )
-
-        st.markdown("**Informações da movimentação**")
-
-        st.markdown(
-            f"### {formatar_texto(detalhes)}"
-        )
-
-        if lancamento is not None and not pd.isna(lancamento):
-            st.caption(formatar_texto(lancamento))
-
-        col_data, col_valor, col_tipo = st.columns(3)
-
-        with col_data:
-            st.caption("Data")
-            st.write(formatar_texto(data))
-
-        with col_valor:
-            st.caption("Valor")
-            st.write(formatar_texto(valor))
-
-        with col_tipo:
-            st.caption("Tipo")
-            st.write(formatar_texto(tipo))
-
-        st.caption(f"Banco: {formatar_texto(banco)}")
-
-        st.divider()
-
-        st.markdown("**Classificação**")
-
-        categorias_validas = [
-            categoria
-            for categoria in categorias
-        ]
-
-        if st.button(
-            "+ Nova categoria",
-            key=f"nova_categoria_pendente_{usuario_id}",
-        ):
-            dialog_nova_categoria(usuario_id)
-
-        opcoes_categorias = {
-            categoria["categoria"]: categoria["id"]
-            for categoria in categorias_validas
-        }
-
-        categoria_escolhida = st.selectbox(
-            "Selecione uma categoria",
-            options=list(opcoes_categorias.keys()),
-            key=f"categoria_movimentacao_pendente_{usuario_id}",
-        )
-
-        categoria_id = opcoes_categorias[categoria_escolhida]
-
-        cadastrar_palavra = st.checkbox(
-            "Cadastrar palavra-chave para futuras movimentações",
-            key=f"cadastrar_palavra_movimentacao_{usuario_id}",
-        )
-
-        movimentacao_id = obter_campo(
-            linha,
-            ["movimentacao_id", "id"],
-        )
-
-        palavra_chave = ""
+    if st.button(
+        "Salvar classificação",
+        type="primary",
+        width="stretch",
+        key=f"salvar_classificacao_movimentacao_{usuario_id}",
+    ):
 
         if cadastrar_palavra:
 
-            palavra_chave = st.text_input(
-                "Palavra-chave",
-                placeholder="Ex.: MERCADO, UBER, FARMACIA...",
-                key=f"palavra_chave_movimentacao_{usuario_id}_{movimentacao_id}",
-            )
-
-        if st.button(
-            "Salvar classificação",
-            type="primary",
-            width="stretch",
-            key=f"salvar_classificacao_movimentacao_{usuario_id}",
-        ):
-
-            if cadastrar_palavra:
-
-                resultado = verificar_regra_categorizacao(
-                    palavra_chave,
-                    categoria_id,
-                    usuario_id,
-                )
-
-                if resultado == "invalida":
-                    st.warning("Informe uma palavra-chave válida.")
-                    return
-
-                if resultado == "conflito":
-                    st.warning(
-                        "Essa palavra-chave já está vinculada "
-                        "a outra categoria."
-                    )
-                    return
-
-                if resultado == "existente":
-                    st.warning(
-                        "Essa palavra-chave já está cadastrada "
-                        "nesta categoria."
-                    )
-                    return
-
-            sucesso = atualizar_categoria_manual(
-                movimentacao_id,
+            resultado = verificar_regra_categorizacao(
+                palavra_chave,
                 categoria_id,
                 usuario_id,
             )
 
-            if not sucesso:
-                st.error("Não foi possível salvar a classificação.")
+            if resultado == "invalida":
+                st.warning("Informe uma palavra-chave válida.")
                 return
 
-            if cadastrar_palavra:
-
-                cadastrar_regra_categorizacao(
-                    palavra_chave,
-                    categoria_id,
-                    usuario_id,
+            if resultado == "conflito":
+                st.warning(
+                    "Essa palavra-chave já está vinculada "
+                    "a outra categoria."
                 )
+                return
 
-            limpar_cache_categorias()
+            if resultado == "existente":
+                st.warning(
+                    "Essa palavra-chave já está cadastrada "
+                    "nesta categoria."
+                )
+                return
 
-            st.success("Movimentação classificada com sucesso!")
+        sucesso = atualizar_categoria_manual(
+            movimentacao_id,
+            categoria_id,
+            usuario_id,
+        )
 
-            st.rerun()
+        if not sucesso:
+            st.error("Não foi possível salvar a classificação.")
+            return
+
+        if cadastrar_palavra:
+            cadastrar_regra_categorizacao(
+                palavra_chave,
+                categoria_id,
+                usuario_id,
+            )
+
+        limpar_cache_categorias()
+
+        limpar_selecao_movimentacoes()
+
+        st.success("Movimentação classificada com sucesso!")
+
+        st.rerun()
 
 
 @st.fragment
@@ -261,6 +286,15 @@ def _render_tabela_movimentacoes_pendentes(
         )
         return
 
+    versao_tabela = st.session_state.get(
+        f"versao_tabela_pendentes_{usuario_id}",
+        0,
+    )
+
+    chave_tabela = (
+        f"tabela_movimentacoes_pendentes_{usuario_id}_{versao_tabela}"
+    )
+
     evento = st.dataframe(
         df_movimentacoes,
         hide_index=True,
@@ -268,7 +302,7 @@ def _render_tabela_movimentacoes_pendentes(
         height=300,
         on_select="rerun",
         selection_mode="single-row",
-        key=f"tabela_movimentacoes_pendentes_{usuario_id}",
+        key=chave_tabela,
     )
 
     linhas_selecionadas = evento.selection.rows
@@ -281,14 +315,16 @@ def _render_tabela_movimentacoes_pendentes(
 
             linha_original = movimentacoes.iloc[indice]
 
-            # Recupera os dados já tratados para exibir no painel.
             linha = df_movimentacoes.iloc[indice].copy()
 
-            # Mantém o ID original, necessário para salvar a classificação.
             linha["movimentacao_id"] = obter_campo(
                 linha_original,
                 ["movimentacao_id", "id"],
             )
+
+            st.session_state[
+                "usuario_id_dialog_classificacao"
+            ] = usuario_id
 
             render_painel_classificacao(
                 linha,
@@ -345,6 +381,10 @@ def render_movimentacoes_pendentes():
             )
 
         st.divider()
+
+        if st.session_state.pop("abrir_dialog_nova_categoria", False):
+            dialog_nova_categoria(usuario_id)
+            return
 
         if movimentacoes is None or movimentacoes.empty:
 

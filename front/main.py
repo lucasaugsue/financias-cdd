@@ -16,6 +16,8 @@ from front.pages.categorias import render_categorias
 
 from front.components.cache import limpar_cache_categorias
 
+from api.regras_padrao import criar_regras_padrao
+
 st.markdown(
     """
     <style>
@@ -39,6 +41,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+@st.cache_resource
+def inicializar_regras_padrao():
+    criar_regras_padrao()
+
 def render_app():
 
     st.set_page_config(
@@ -50,6 +56,7 @@ def render_app():
     # Inicialização do banco
     try:
         criar_tabelas()
+        # inicializar_regras_padrao()
 
     except Exception as erro:
         st.error(f"Erro ao conectar com o banco: {erro}")

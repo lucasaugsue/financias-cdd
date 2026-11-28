@@ -8,6 +8,7 @@ def criar_regras_padrao():
 
     regras_padrao = {
         "Alimentação": [
+            # Regras existentes
             "IFOOD",
             "UBER EATS",
             "RAPPI",
@@ -18,9 +19,29 @@ def criar_regras_padrao():
             "MCDONALDS",
             "SUBWAY",
             "HABIBS",
+
+            # Novas regras
+            "KONI",
+            "PANIFICADORA",
+            "PANIF CASTANHEIRAS",
+            "CACAU SHOW",
+            "MC DONALS",
+            "SEU JOACA FAST FOOD",
+            "OUTBACK",
+            "MADERO",
+            "COCO BAMBU",
+            "GIRAFFAS",
+            "SPOLETO",
+            "KFC",
+            "DOMINOS",
+            "PIZZA HUT",
+            "STARBUCKS",
+            "BOSTON BAKERY",
+            "DONUTS",
         ],
 
         "Supermercado": [
+            # Regras existentes
             "CARREFOUR",
             "ASSAI",
             "ATACADAO",
@@ -31,9 +52,22 @@ def criar_regras_padrao():
             "EXTRA",
             "DIA SUPERMERCADO",
             "TATICO",
+
+            # Novas regras
+            "PRIME CARNES",
+            "SUPERMERCADOS BH",
+            "GPA",
+            "FORT ATACADISTA",
+            "SAM'S CLUB",
+            "OBRAMAX",
+            "COMPER",
+            "OBa HORTIFRUTI",
+            "HORTIFRUTI",
+            "MIX MATEUS",
         ],
 
         "Transporte": [
+            # Regras existentes
             "UBER TRIP",
             "99APP",
             "99POP",
@@ -44,9 +78,21 @@ def criar_regras_padrao():
             "BRB MOBILIDADE",
             "SEM PARAR",
             "ESTACIONAMENTO",
+
+            # Novas regras
+            "CASCOL COMBUSTIVEIS",
+            "AUTO POSTO FENIX",
+            "ESTAPAR",
+            "INDIGO",
+            "ZUL DIGITAL",
+            "VIA FACIL",
+            "CONCESSIONARIA",
+            "PEDAGIO",
+            "RECARGA BRB MOBILIDADE",
         ],
 
         "Moradia": [
+            # Regras existentes
             "ALUGUEL",
             "CONDOMINIO",
             "ENERGIA",
@@ -57,9 +103,21 @@ def criar_regras_padrao():
             "ENEL",
             "COMPANHIA DE AGUA",
             "GAS ENCANADO",
+
+            # Novas regras
+            "CEB",
+            "SANEAGO",
+            "COPASA",
+            "SANEPAR",
+            "COMGAS",
+            "ULTRAGAZ",
+            "NACIONAL GAS",
+            "IPTU",
+            "TAXA CONDOMINIAL",
         ],
 
         "Saúde": [
+            # Regras existentes
             "DROGASIL",
             "DROGARIA",
             "FARMACIA",
@@ -70,9 +128,25 @@ def criar_regras_padrao():
             "CLINICA",
             "LABORATORIO",
             "UNIMED",
+
+            # Novas regras
+            "DROGAFUJI",
+            "INSTITUTO ODONTOLOGIC",
+            "DROGARIA ROSARIO",
+            "DROGARIA VENANCIO",
+            "PACHECO",
+            "ULTRAFARMA",
+            "DROGARIA SAO PAULO",
+            "ODONTO",
+            "ODONTOLOGIA",
+            "FLEURY",
+            "DASA",
+            "SABIN",
+            "EXAME LABORATORIO",
         ],
 
         "Educação": [
+            # Regras existentes
             "UDEMY",
             "COURSERA",
             "ALURA",
@@ -83,9 +157,23 @@ def criar_regras_padrao():
             "ESCOLA",
             "LIVRARIA",
             "CURSO",
+
+            # Novas regras
+            "FG PAPELARIA",
+            "GRAN CENTRO UNIVERSITARIO",
+            "ESTACIO",
+            "UNIP",
+            "ANHANGUERA",
+            "UNINTER",
+            "DESCOMPLICA",
+            "KULTIVI",
+            "DOMESTIKA",
+            "SKILLSHARE",
+            "PAPELARIA",
         ],
 
         "Lazer": [
+            # Regras existentes
             "STEAM",
             "PLAYSTATION",
             "XBOX",
@@ -96,9 +184,22 @@ def criar_regras_padrao():
             "PARQUE",
             "BOLICHE",
             "TEATRO",
+
+            # Novas regras
+            "PLAY BOWLING",
+            "CINEMARK",
+            "KINOPLEX",
+            "UCI CINEMAS",
+            "INGRESSO.COM",
+            "TICKETMASTER",
+            "HOT PARK",
+            "BETO CARRERO",
+            "PARQUE AQUATICO",
+            "ZOOLOGICO",
         ],
 
         "Compras": [
+            # Regras existentes
             "AMAZON",
             "MERCADO LIVRE",
             "SHOPEE",
@@ -109,9 +210,25 @@ def criar_regras_padrao():
             "RIACHUELO",
             "CENTAURO",
             "LOJAS AMERICANAS",
+
+            # Novas regras
+            "AMERICANAS",
+            "CASAS BAHIA",
+            "PONTO FRIO",
+            "FAST SHOP",
+            "KALUNGA",
+            "DECATHLON",
+            "ZARA",
+            "C&A",
+            "MARISA",
+            "PETZ",
+            "COBASI",
+            "FLORICULTURA",
+            "MULTIDISPLAY",
         ],
 
         "Assinaturas": [
+            # Regras existentes
             "NETFLIX",
             "DISNEY PLUS",
             "HBO MAX",
@@ -122,6 +239,18 @@ def criar_regras_padrao():
             "ICLOUD",
             "SPOTIFY",
             "MICROSOFT 365",
+
+            # Novas regras
+            "GOOGLE ONE",
+            "GOOGLE STORAGE",
+            "CRUNCHYROLL",
+            "PARAMOUNT PLUS",
+            "DEEZER",
+            "CANVA",
+            "ADOBE",
+            "DROPBOX",
+            "GOOGLE WORKSPACE",
+            "CHATGPT",
         ],
 
         "Transferências recebidas": [

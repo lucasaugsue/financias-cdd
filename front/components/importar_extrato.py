@@ -12,142 +12,201 @@ from services.arquivos import (
 from services.movimentacoes import padronizar_movimentacoes
 
 
-@st.dialog("Importar novo extrato", width="large")
+@st.dialog("Importar novos extratos", width="large")
 def dialog_importar_extrato():
 
     usuario_id = st.session_state["usuario"]["id"]
 
+    bancos = [
+        "Banco do Brasil",
+        "Nubank",
+        "Itaú",
+        "Bradesco",
+        "Caixa Econômica Federal",
+        "Santander",
+        "Inter",
+        "Outro",
+    ]
+
     st.write(
-        "Selecione o banco e o arquivo que deseja importar."
+        "Selecione um ou mais arquivos para importar."
     )
 
-    banco_origem = st.selectbox(
-        "Banco de origem",
-        [
-            "Banco do Brasil",
-            "Nubank",
-            "Itaú",
-            "Bradesco",
-            "Caixa Econômica Federal",
-            "Santander",
-            "Inter",
-            "Outro",
-        ],
-        key=f"modal_banco_origem_{usuario_id}",
-    )
-
-    arquivo = st.file_uploader(
-        "Selecione seu extrato",
+    arquivos = st.file_uploader(
+        "Selecione seus extratos",
         type=["csv", "xlsx"],
-        accept_multiple_files=False,
-        key=f"modal_arquivo_{usuario_id}",
+        accept_multiple_files=True,
+        key=f"modal_arquivos_{usuario_id}",
     )
 
-    if arquivo is None:
+    if not arquivos:
         return
 
-    try:
-        # 1. Leitura original do arquivo
-        df = ler_arquivo(arquivo)
+    extratos_processados = []
 
-        quantidade_original = len(df)
+    st.divider()
 
-        # 2. Aplicação das regras específicas do Banco do Brasil
-        if (
-            banco_origem == "Banco do Brasil"
-            and arquivo.name.lower().endswith(".csv")
-        ):
-            df = limpar_extrato_banco_brasil(df)
+    st.subheader(
+        f"Arquivos selecionados: {len(arquivos)}"
+    )
 
-        quantidade_final = len(df)
-        registros_removidos = quantidade_original - quantidade_final
+    # Área com rolagem para os arquivos
+    with st.container(height=550, border=True):
 
-        # 3. Cálculo do hash do arquivo original
-        hash_arquivo = calcular_hash_arquivo(
-            arquivo,
-            banco_origem,
-        )
+        for indice, arquivo in enumerate(arquivos):
 
-        # 4. Padronização das movimentações
-        df = padronizar_movimentacoes(df)
+            with st.expander(
+                f"📄 {arquivo.name}",
+                expanded=True,
+            ):
 
-        st.success(
-            f"Arquivo carregado: {arquivo.name}"
-        )
-
-        # 5. Resumo da importação
-        col1, col2, col3 = st.columns(3)
-
-        col1.metric(
-            "Registros originais",
-            quantidade_original,
-        )
-
-        col2.metric(
-            "Registros removidos",
-            registros_removidos,
-        )
-
-        col3.metric(
-            "Registros para importar",
-            quantidade_final,
-        )
-
-        if registros_removidos > 0:
-            st.info(
-                f"{registros_removidos} registro(s) foram removidos "
-                "pelas regras de limpeza do Banco do Brasil."
-            )
-
-        # 6. Prévia dos dados padronizados
-        st.subheader("Prévia das movimentações")
-
-        st.dataframe(
-            df,
-            width="stretch",
-            hide_index=True,
-        )
-
-        # 7. Salvamento no banco
-        if st.button(
-            "💾 Salvar extrato no banco",
-            type="primary",
-            width="stretch",
-            key=f"salvar_extrato_{usuario_id}",
-        ):
-
-            if df.empty:
-                st.warning(
-                    "Não existem movimentações válidas para importar."
+                banco_origem = st.selectbox(
+                    "Banco de origem",
+                    bancos,
+                    key=f"banco_{usuario_id}_{indice}_{arquivo.name}",
                 )
-                return
 
-            try:
-                with st.spinner("Salvando extrato..."):
+                try:
+                    # 1. Leitura original
+                    df = ler_arquivo(arquivo)
 
+                    quantidade_original = len(df)
+
+                    # 2. Limpeza específica do Banco do Brasil
+                    if (
+                        banco_origem == "Banco do Brasil"
+                        and arquivo.name.lower().endswith(".csv")
+                    ):
+                        df = limpar_extrato_banco_brasil(df)
+
+                    quantidade_final = len(df)
+
+                    registros_removidos = (
+                        quantidade_original - quantidade_final
+                    )
+
+                    # 3. Cálculo do hash
+                    hash_arquivo = calcular_hash_arquivo(
+                        arquivo,
+                        banco_origem,
+                    )
+
+                    # 4. Padronização
+                    df = padronizar_movimentacoes(df)
+
+                    # 5. Resumo
+                    col1, col2, col3 = st.columns(3)
+
+                    col1.metric(
+                        "Registros originais",
+                        quantidade_original,
+                    )
+
+                    col2.metric(
+                        "Registros removidos",
+                        registros_removidos,
+                    )
+
+                    col3.metric(
+                        "Registros para importar",
+                        quantidade_final,
+                    )
+
+                    if registros_removidos > 0:
+                        st.info(
+                            f"{registros_removidos} registro(s) "
+                            "foram removidos pelas regras de limpeza."
+                        )
+
+                    st.caption(
+                        f"Banco selecionado: {banco_origem}"
+                    )
+
+                    st.dataframe(
+                        df,
+                        width="stretch",
+                        hide_index=True,
+                    )
+
+                    extratos_processados.append({
+                        "arquivo": arquivo,
+                        "banco_origem": banco_origem,
+                        "hash_arquivo": hash_arquivo,
+                        "df": df,
+                    })
+
+                except Exception as erro:
+                    st.error(
+                        f"Erro ao processar {arquivo.name}: {erro}"
+                    )
+
+    st.divider()
+
+    # 6. Salvar todos os arquivos
+    if st.button(
+        "💾 Salvar todos os extratos",
+        type="primary",
+        width="stretch",
+        key=f"salvar_todos_extratos_{usuario_id}",
+    ):
+
+        if not extratos_processados:
+            st.warning(
+                "Não existem arquivos válidos para importar."
+            )
+            return
+
+        sucessos = 0
+        falhas = 0
+
+        with st.spinner("Salvando extratos..."):
+
+            for extrato in extratos_processados:
+
+                arquivo = extrato["arquivo"]
+                df = extrato["df"]
+
+                if df.empty:
+                    st.warning(
+                        f"{arquivo.name}: não possui movimentações válidas."
+                    )
+                    falhas += 1
+                    continue
+
+                try:
                     extrato_id = salvar_extrato(
                         arquivo.name,
-                        banco_origem,
-                        hash_arquivo,
+                        extrato["banco_origem"],
+                        extrato["hash_arquivo"],
                         df,
                         usuario_id,
                     )
 
-                st.success(
-                    f"Extrato salvo com sucesso! ID: {extrato_id}"
-                )
+                    st.success(
+                        f"{arquivo.name}: salvo com sucesso! "
+                        f"ID: {extrato_id}"
+                    )
 
-                st.rerun()
+                    sucessos += 1
 
-            except ValueError as erro:
-                st.warning(str(erro))
+                except ValueError as erro:
+                    st.warning(
+                        f"{arquivo.name}: {erro}"
+                    )
+                    falhas += 1
 
-            except Exception as erro:
-                st.error(
-                    f"Erro ao salvar extrato: {erro}"
-                )
+                except Exception as erro:
+                    st.error(
+                        f"{arquivo.name}: erro ao salvar: {erro}"
+                    )
+                    falhas += 1
 
-    except Exception as erro:
-        st.error(
-            f"Não foi possível ler o arquivo: {erro}"
+        st.divider()
+
+        st.write(
+            f"**Resultado:** {sucessos} arquivo(s) salvo(s) "
+            f"e {falhas} arquivo(s) não importado(s)."
         )
+
+        if sucessos > 0:
+            st.rerun()
