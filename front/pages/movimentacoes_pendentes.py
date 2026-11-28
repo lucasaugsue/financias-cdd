@@ -10,6 +10,7 @@ from api.categorias import (
 
 from api.extratos import (
     atualizar_categoria_manual,
+    atualizar_categorias_movimentacoes,
 )
 
 from front.components.cache import (
@@ -23,6 +24,10 @@ from services.movimentacoes import (
     obter_campo,
     formatar_texto,
     preparar_tabela_movimentacoes,
+)
+
+from services.agrupamento import (
+    agrupar_movimentacoes_similares,
 )
 
 
@@ -295,6 +300,8 @@ def _render_tabela_movimentacoes_pendentes(
         f"tabela_movimentacoes_pendentes_{usuario_id}_{versao_tabela}"
     )
 
+    st.info("Selecione uma movimentação para classificar.")
+
     evento = st.dataframe(
         df_movimentacoes,
         hide_index=True,
@@ -339,9 +346,112 @@ def _render_tabela_movimentacoes_pendentes(
                 "Selecione novamente uma movimentação."
             )
 
-    else:
 
-        st.info("Selecione uma movimentação para classificar.")
+
+def _render_teste_agrupamento(
+    movimentacoes,
+    categorias,
+    usuario_id,
+):
+    grupos = agrupar_movimentacoes_similares(movimentacoes)
+
+    if not grupos:
+        st.info(
+            "Nenhum grupo de movimentações semelhantes encontrado."
+        )
+        return
+
+    opcoes_categorias = {
+        categoria["categoria"]: categoria["id"]
+        for categoria in categorias
+    }
+
+    if not opcoes_categorias:
+        st.warning("Cadastre pelo menos uma categoria.")
+        return
+
+    for numero, grupo in enumerate(grupos, start=1):
+
+        movimentacoes_grupo = grupo["movimentacoes"]
+
+        descricao = grupo["descricao"]
+        quantidade = len(movimentacoes_grupo)
+
+        with st.expander(
+            f"**{descricao}** — {quantidade} movimentações"
+        ):
+
+            st.markdown("**Movimentações deste grupo**")
+
+            for movimentacao in movimentacoes_grupo:
+
+                detalhes = movimentacao.get("Detalhes", "")
+                valor = movimentacao.get("Valor", 0)
+
+                try:
+                    valor_formatado = float(valor)
+                except (TypeError, ValueError):
+                    valor_formatado = 0
+
+                sinal = "+" if valor_formatado > 0 else ""
+
+                valor_exibicao = (
+                    f"{sinal}R$ {valor_formatado:,.2f}"
+                    .replace(",", "X")
+                    .replace(".", ",")
+                    .replace("X", ".")
+                )
+
+                st.write(
+                    f"- {detalhes} | {valor_exibicao}"
+                )
+
+            st.divider()
+
+            categoria_escolhida = st.selectbox(
+                "Categoria para todas as movimentações",
+                options=list(opcoes_categorias.keys()),
+                key=f"categoria_grupo_{usuario_id}_{numero}",
+            )
+
+            categoria_id = opcoes_categorias[categoria_escolhida]
+
+            if st.button(
+                "Classificar todas",
+                type="primary",
+                key=f"classificar_grupo_{usuario_id}_{numero}",
+                width="stretch",
+            ):
+
+                df_atualizacao = pd.DataFrame([
+                    {
+                        "movimentacao_id": movimentacao["movimentacao_id"],
+                        "categoria_id": categoria_id,
+                    }
+                    for movimentacao in movimentacoes_grupo
+                ])
+
+                quantidade_atualizada = atualizar_categorias_movimentacoes(
+                    df_atualizacao,
+                    usuario_id,
+                )
+
+                limpar_cache_categorias()
+
+                limpar_selecao_movimentacoes()
+
+                if quantidade_atualizada > 0:
+                    st.success(
+                        f"{quantidade_atualizada} movimentações "
+                        "classificadas com sucesso!"
+                    )
+                else:
+                    st.warning(
+                        "Nenhuma movimentação foi atualizada. "
+                        "Elas podem já ter sido classificadas."
+                    )
+
+                st.rerun()
 
 
 def render_movimentacoes_pendentes():
@@ -397,10 +507,39 @@ def render_movimentacoes_pendentes():
             movimentacoes
         )
 
+        # ==========================================
+        # CLASSIFICAÇÃO UNITÁRIA
+        # ==========================================
+
+        st.subheader("1. Classificação unitária")
+
+        st.caption(
+            "Classifique individualmente cada movimentação pendente."
+        )
+
         _render_tabela_movimentacoes_pendentes(
             categorias,
             movimentacoes,
             df_movimentacoes,
+            usuario_id,
+        )
+
+        st.divider()
+
+        # ==========================================
+        # CLASSIFICAÇÃO POR GRUPOS
+        # ==========================================
+
+        st.subheader("2. Classificação por grupos")
+
+        st.caption(
+            "Encontre movimentações com descrições iguais ou "
+            "semelhantes e classifique várias de uma só vez."
+        )
+
+        _render_teste_agrupamento(
+            movimentacoes,
+            categorias,
             usuario_id,
         )
 

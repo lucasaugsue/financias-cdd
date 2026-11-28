@@ -497,10 +497,12 @@ def atualizar_categorias_movimentacoes(df, usuario_id):
     registros = []
 
     for _, linha in df.iterrows():
+
         movimentacao_id = linha.get("movimentacao_id")
         categoria_id = linha.get("categoria_id")
 
         if pd.notna(movimentacao_id) and pd.notna(categoria_id):
+
             registros.append({
                 "movimentacao_id": int(movimentacao_id),
                 "categoria_id": int(categoria_id),
@@ -508,10 +510,11 @@ def atualizar_categorias_movimentacoes(df, usuario_id):
             })
 
     if not registros:
-        return
+        return 0
 
     with engine.begin() as connection:
-        connection.execute(
+
+        resultado = connection.execute(
             text("""
                 UPDATE movimentacoes m
                 SET categoria_id = :categoria_id
@@ -534,6 +537,8 @@ def atualizar_categorias_movimentacoes(df, usuario_id):
             """),
             registros
         )
+
+        return resultado.rowcount
 
 
 def editar_categoria_movimentacao(movimentacao_id, categoria_id, usuario_id):

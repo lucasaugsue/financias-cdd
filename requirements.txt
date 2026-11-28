@@ -32,6 +32,7 @@ pydeck==0.9.3
 python-dateutil==4.0.0
 python-dotenv==1.2.4
 python-multipart==0.0.33
+RapidFuzz==3.14.6
 referencing==0.37.0
 requests==2.34.2
 rpds-py==2026.9.1
